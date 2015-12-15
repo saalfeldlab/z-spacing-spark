@@ -119,8 +119,6 @@ public class ZSpacing {
 //        MatrixGenerationFromFewLargeBlocks matrixCalculatorFewLarge =
 //                new MatrixGenerationFromFewLargeBlocks(sc, sections);
 //
-//        MatrixGenerationFromManySmallBlocks matrixCalculatorManySmall =
-//                MatrixGenerationFromManySmallBlocks.create(sections, blockSize, new int[]{width, height}, sc.defaultParallelism(), sc);
 
 //        new ImageJ();
 
