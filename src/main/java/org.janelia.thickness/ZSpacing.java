@@ -116,10 +116,6 @@ public class ZSpacing {
         TolerantNCC tolerantNCC = new TolerantNCC(sectionPairs);
         tolerantNCC.ensurePersistence();
 
-//        MatrixGenerationFromFewLargeBlocks matrixCalculatorFewLarge =
-//                new MatrixGenerationFromFewLargeBlocks(sc, sections);
-//
-
 //        new ImageJ();
 
 //        IJ.log( Arrays.toString( dim ) );
