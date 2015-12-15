@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Created by hanslovskyp on 9/25/15.
  */
-public class MatrixGenerationFromImagePairs implements MatrixGeneration<Tuple2< Integer, Integer >> {
+public class MatrixGenerationFromImagePairs {
 
     private final JavaSparkContext sc;
     // assume only one of (i,j),(j,i) is present
@@ -40,7 +40,6 @@ public class MatrixGenerationFromImagePairs implements MatrixGeneration<Tuple2< 
     }
 
 
-    @Override
     public JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> generateMatrices(int[] stride, int[] correlationBlockRadius, final int range) {
 
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2< FPTuple, FPTuple >> pairsWithinRange =
