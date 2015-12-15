@@ -287,20 +287,6 @@ public class Utility {
         }
     }
 
-//    public static class AnisostropicDiffusion< K > implements PairFunction< Tuple2< K, FPTuple >, K, FPTuple >
-//    {
-//
-//        @Override
-//        public Tuple2<K, FPTuple> call(Tuple2<K, FPTuple> t) throws Exception {
-//            FloatProcessor fp = (FloatProcessor) t._2().rebuild().duplicate();
-//            new Anisotropic_Diffusion_2D().runTD( fp );
-//            return null;
-//        }
-//    }
-
-
-
-
     public static int xyToLinear( int width, int x, int y )
     {
         return width*y + x;
