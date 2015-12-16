@@ -9,12 +9,14 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 
+import org.janelia.thickness.utility.FPTuple;
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 import scala.Tuple3;
 
 public class SparkTransformationToImages {
 
-    public static JavaPairRDD< Integer, FPTuple > toImages(
+    public static JavaPairRDD< Integer, FPTuple> toImages(
             final JavaPairRDD< Tuple2< Integer, Integer >, double[] > input,
             final int[] dim,
             final int[] radius,

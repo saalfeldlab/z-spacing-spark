@@ -1,11 +1,10 @@
 package org.janelia.thickness;
 
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.concurrent.Callable;
 
 /**
  * Created by hanslovskyp on 9/23/15.

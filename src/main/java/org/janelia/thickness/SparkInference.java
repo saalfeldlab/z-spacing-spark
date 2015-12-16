@@ -23,6 +23,8 @@ import org.janelia.thickness.inference.fits.CorrelationFitAverage;
 import org.janelia.thickness.inference.visitor.LazyVisitor;
 import org.janelia.thickness.inference.visitor.Visitor;
 import org.janelia.thickness.mediator.OpinionMediatorWeightedAverage;
+import org.janelia.thickness.utility.FPTuple;
+import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.io.IO;
 import scala.Tuple2;
 

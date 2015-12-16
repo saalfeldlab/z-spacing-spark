@@ -25,6 +25,8 @@ import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.utility.FPTuple;
+import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
 

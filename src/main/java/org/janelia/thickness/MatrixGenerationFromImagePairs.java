@@ -8,6 +8,8 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
+import org.janelia.thickness.utility.FPTuple;
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
 import java.util.ArrayList;
@@ -22,7 +24,7 @@ public class MatrixGenerationFromImagePairs {
 
     private final JavaSparkContext sc;
     // assume only one of (i,j),(j,i) is present
-    private final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > > sectionPairs;
+    private final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2<FPTuple, FPTuple > > sectionPairs;
     private final int[] dim;
     private final int size;
 

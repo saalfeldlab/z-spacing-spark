@@ -1,12 +1,13 @@
 package org.janelia.thickness;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.utility.DPTuple;
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
 import java.util.*;
@@ -42,7 +43,7 @@ public class ColumnsAndSections {
 
 
 
-    public JavaPairRDD< Integer, DPTuple > columnsToSections(
+    public JavaPairRDD< Integer, DPTuple> columnsToSections(
             JavaSparkContext sc,
             JavaPairRDD<Tuple2< Integer, Integer >, double[] > input
     )

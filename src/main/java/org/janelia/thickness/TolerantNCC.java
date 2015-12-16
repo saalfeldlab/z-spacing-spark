@@ -2,23 +2,17 @@ package org.janelia.thickness;
 
 import ij.ImageJ;
 import ij.ImagePlus;
-import ij.io.FileSaver;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import mpicbg.ij.integral.BlockPMCC;
-import mpicbg.ij.integral.DoubleIntegralImage;
-import mpicbg.ij.integral.MaskedBlockPMCC;
 import mpicbg.ij.integral.WeightedBlockPMCC;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.Function;
-import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.similarities.NCC;
-import org.janelia.utility.io.IO;
+import org.janelia.thickness.utility.FPTuple;
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
 import java.util.*;
@@ -28,7 +22,7 @@ import java.util.*;
  */
 public class TolerantNCC {
 
-    private final JavaPairRDD<Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple >> overcompleteSections;
+    private final JavaPairRDD<Tuple2< Integer, Integer >, Tuple2<FPTuple, FPTuple >> overcompleteSections;
 
     public TolerantNCC(JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> overcompleteSections) {
         this.overcompleteSections = overcompleteSections;

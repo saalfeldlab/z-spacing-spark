@@ -1,16 +1,14 @@
 package org.janelia.thickness;
 
-import ij.ImagePlus;
-import ij.io.FileSaver;
 import ij.process.ByteProcessor;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Created by hanslovskyp on 10/1/15.

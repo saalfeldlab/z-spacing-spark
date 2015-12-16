@@ -1,5 +1,8 @@
 package org.janelia.thickness;
 
+import org.janelia.thickness.utility.DPTuple;
+import org.janelia.thickness.utility.Utility;
+
 import java.util.Arrays;
 
 /**
@@ -7,7 +10,7 @@ import java.util.Arrays;
  */
 public class FillHoles {
 
-    public static DPTuple fill( DPTuple input )
+    public static DPTuple fill(DPTuple input )
     {
         // final FloatProcessor fpCopy = ( FloatProcessor )fp.duplicate();
 

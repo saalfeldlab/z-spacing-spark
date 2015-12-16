@@ -6,7 +6,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import net.imglib2.RandomAccess;
-import net.imglib2.img.array.ArrayCursor;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.array.ArrayRandomAccess;
@@ -26,6 +25,7 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 
 import org.apache.spark.broadcast.Broadcast;
+import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
 
