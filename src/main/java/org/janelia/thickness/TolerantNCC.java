@@ -121,84 +121,6 @@ public class TolerantNCC {
         return matrices;
 
 
-//        JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> pairWiseSimilarities = sections
-//                .mapToPair(new FPToSimilarities<Tuple2<Integer, Integer>>(maxOffset, blockRadius, step));
-
-//        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>> flatSimilarities = pairWiseSimilarities
-//                .flatMapToPair(new PairFlatMapFunction<Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>, Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>() {
-//                    @Override
-//                    public Iterable<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>>
-//                    call(final Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> t) throws Exception {
-//                        final Tuple2<Integer, Integer> key = t._1();
-//                        final Set<Map.Entry<Tuple2<Integer, Integer>, Double>> es = t._2().entrySet();
-//                        final Iterator<Map.Entry<Tuple2<Integer, Integer>, Double>> it = es.iterator();
-//                        return new Iterable<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>>() {
-//                            @Override
-//                            public Iterator<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>> iterator() {
-//                                return new Iterator<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>>() {
-//                                    @Override
-//                                    public boolean hasNext() {
-//                                        return it.hasNext();
-//                                    }
-//
-//                                    @Override
-//                                    public Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>> next() {
-//                                        Map.Entry<Tuple2<Integer, Integer>, Double> entry = it.next();
-//                                        return Utility.tuple2(key, Utility.tuple2(entry.getKey(), entry.getValue()));
-//                                    }
-//
-//                                    @Override
-//                                    public void remove() {
-//
-//                                    }
-//                                };
-//                            }
-//                        };
-//                    }
-//                });
-//        JavaPairRDD<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> similaritiesWithXYKeys = flatSimilarities
-//                .mapToPair(new PairFunction<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>, Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>() {
-//                    @Override
-//                    public Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>
-//                    call(Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>> t) throws Exception {
-//                        Tuple2<Integer, Integer> pairwiseZKey = t._1();
-//                        Tuple2<Tuple2<Integer, Integer>, Double> entry = t._2();
-//                        HashMap<Tuple2<Integer, Integer>, Double> hm = new HashMap<Tuple2<Integer, Integer>, Double>();
-//                        hm.put(pairwiseZKey, entry._2());
-//                        return Utility.tuple2(entry._1(), hm);
-//                    }
-//                });
-//        JavaPairRDD<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> similarities = similaritiesWithXYKeys
-//                .reduceByKey(new Function2<HashMap<Tuple2<Integer, Integer>, Double>, HashMap<Tuple2<Integer, Integer>, Double>, HashMap<Tuple2<Integer, Integer>, Double>>() {
-//                    @Override
-//                    public HashMap<Tuple2<Integer, Integer>, Double> call(HashMap<Tuple2<Integer, Integer>, Double> hm1, HashMap<Tuple2<Integer, Integer>, Double> hm2) throws Exception {
-//                        HashMap<Tuple2<Integer, Integer>, Double> result = new HashMap<Tuple2<Integer, Integer>, Double>();
-//                        result.putAll(hm1);
-//                        result.putAll(hm2);
-//                        return result;
-//                    }
-//                });
-//        JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> result = similarities
-//                .mapToPair(new PairFunction<Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>, Tuple2<Integer, Integer>, FPTuple>() {
-//                    @Override
-//                    public Tuple2<Tuple2<Integer, Integer>, FPTuple> call(Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> t) throws Exception {
-//                        FloatProcessor result = new FloatProcessor( size, size );
-//                        result.add( Double.NaN );
-//                        for ( int z = 0; z < size; ++z )
-//                            result.setf( z, z, 1.0f );
-//                        for( Map.Entry<Tuple2<Integer, Integer>, Double> e : t._2().entrySet() )
-//                        {
-//                            Tuple2<Integer, Integer> xy = e.getKey();
-//                            float val = e.getValue().floatValue();
-//                            int x = xy._1();
-//                            int y = xy._2();
-//                            result.setf( x, y, val );
-//                            result.setf( y, x, val );
-//                        }
-//
-//                        return Utility.tuple2( t._1(), new FPTuple( result ) );
-//                    }
-//                });
     }
 
     public static class FPToSimilarities<K>
@@ -218,23 +140,6 @@ public class TolerantNCC {
             FloatProcessor moving = t._2()._2().rebuild();
 
             Tuple2<FloatProcessor, FloatProcessor> ccs = tolerantNCC(fixed, moving, maxOffsets, blockRadius);
-
-            // remove
-//
-//            FloatProcessor weights = ccs._2();
-//            if( t._1() instanceof  Tuple2 ) {
-//                Object k1 = ((Tuple2) t._1())._1();
-//                Object k2 = ((Tuple2) t._1())._2();
-//                if( k1 instanceof Integer && k2 instanceof Integer &&
-//                        ( ((Integer) k2).intValue() == ((Integer) k1).intValue()+1 ||
-//                        ((Integer)k1).intValue() == ((Integer) k2).intValue() + 1 ) ) {
-//                    String path = "/groups/saalfeld/home/hanslovskyp/local/tmp/weights/" +
-//                            ((Integer) k1).intValue() + ".tif";
-//                    IO.createDirectoryForFile(path);
-//                    new FileSaver(new ImagePlus("", weights)).saveAsTiff(path);
-//                }
-//            }
-            // end remove
             return Utility.tuple2( t._1(), Utility.tuple2( new FPTuple( ccs._1()), new FPTuple( ccs._2()) ) );
         }
     }
@@ -283,31 +188,6 @@ public class TolerantNCC {
         };
 
 
-        // pad image?
-//        int paddedWidth = width + 2*maxOffsets[0];
-//        int paddedHeight = height + 2*maxOffsets[1];
-//
-//        FloatProcessor fixedPadded = new FloatProcessor( paddedWidth, paddedHeight );
-//        Random rng = new Random();
-//
-//        int innerBoundaryLowerX = maxOffsets[0];
-//        int innerBoundaryLowerY = maxOffsets[1];
-//
-//        int innerBoundaryUpperX = innerBoundaryLowerX + width;
-//        int innerBoundaryUpperY = innerBoundaryLowerY + height;
-//
-//        for ( int y = 0; y < paddedHeight; ++y )
-//        {
-//            for ( int x = 0; x < paddedWidth; ++x )
-//            {
-//                if( x < innerBoundaryLowerX || x >= innerBoundaryUpperX || y < innerBoundaryLowerY || y >= innerBoundaryUpperY )
-//                    fixedPadded.setf( x, y, rng.nextFloat() );
-//                else
-//                    fixedPadded.setf( x, y, fixed.getf( x-innerBoundaryLowerX, y-innerBoundaryLowerY ) );
-//            }
-//        }
-
-
 //        BlockPMCC pmcc = new BlockPMCC( fixed, moving );
         HashSet<Float> maskedValues = new HashSet<Float>();
         maskedValues.add( 0.0f );
@@ -324,12 +204,7 @@ public class TolerantNCC {
         final int yStop = 1 * maxOffsets[1]; // inclusive
 
         FloatProcessor weights = new FloatProcessor( width, height );
-//        weights.add( 1.0 );
 
-//        DoubleIntegralImage sumsXX = pmcc.getSumsXX();
-//        DoubleIntegralImage sumsYY = pmcc.getSumsYY();
-//        DoubleIntegralImage sumsX  = pmcc.getSumsX();
-//        DoubleIntegralImage sumsY  = pmcc.getSumsY();
 
         for( int yOff = yStart; yOff <= yStop; ++yOff )
         {
@@ -403,31 +278,13 @@ public class TolerantNCC {
 
         for ( int y = 0; y < height; ++y )
         {
-            final int yMin = Math.max( -1, y - blockRadius[1] - 1 );
-            final int yMax = Math.min( height-1, y + blockRadius[1] );
             for ( int x = 0; x < width; ++x )
             {
-                final int xMin = Math.max( -1, x - blockRadius[0] - 1 );
-                final int xMax = Math.min( width-1, x + blockRadius[0] );
-//                int n = (xMax - xMin) * (yMax - yMin);
-
-//                final double sumX  = pmcc.getSumX( xMin, yMin, xMax, yMax );
-//                final double sumY  = sumsY.getDoubleSum( xMin, yMin, xMax, yMax );
-//                final double sumXX = pmcc.getSumXX( xMin, yMin, xMax, yMax );
-//                final double sumYY = sumsYY.getDoubleSum(xMin, yMin, xMax, yMax);
-//                final double Z = pmcc.getZ( xMin, yMin, xMax, yMax );
-
-
-                // if blocks would reach out of bounds, ignore them (NaN)
-//                double weight = (
-//                        (x < blockRadius[0]) || (x > (width - blockRadius[0])) ||
-//                                (y < blockRadius[1]) || (y > (height - blockRadius[1]))
-//                ) ?
-//                        Double.NaN :
-//                        Math.sqrt( sumXX - sumX * sumX / n ) / n;
-                // 0.5* ( n * sumXX - sumX * sumX + n * sumYY - sumY * sumY );
-
-                float weight = binaryMask.getf( x, y );
+                float weight = (
+                        (x < blockRadius[0]) || (x > (width - blockRadius[0])) ||
+                                (y < blockRadius[1]) || (y > (height - blockRadius[1]))
+                ) ?
+                Float.NaN : binaryMask.getf( x, y );
                 weights.setf( x, y, weight );
             }
         }
@@ -523,107 +380,6 @@ public class TolerantNCC {
 
         new ImagePlus( "weights", maxCorrs._2() ).show();
 
-//        String pattern = "/nobackup/saalfeld/hanslovskyp/Chlamy/428x272x1414+20+20+0/data/%04d.tif";
-//        int start = 0;
-//        int stop  = 200;
-//
-//        final int range = 50;
-//
-//        JavaRDD<Integer> indices = sc.parallelize( Utility.arange(start, stop));
-//
-//        JavaPairRDD<Integer, FPTuple> indexedImages = indices
-//                .mapToPair(new Utility.Format<Integer>(pattern))
-//                .mapToPair(new Utility.LoadFile())
-//                .cache()
-//                ;
-//
-//        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> imagePairs = indexedImages
-//                .cartesian(indexedImages)
-//                .filter(new Function<Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>>, Boolean>() {
-//                    @Override
-//                    public Boolean call(Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>> t) throws Exception {
-//                        int v1 = t._1()._1();
-//                        int v2 = t._2()._1();
-//                        int diff = v2 - v1;
-//                        return diff > 0 && diff <= range;
-//                    }
-//                })
-//                .mapToPair(new PairFunction<Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>>, Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>>() {
-//                    @Override
-//                    public Tuple2<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>>
-//                    call(Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>> t) throws Exception {
-//                        return Utility.tuple2(
-//                                Utility.tuple2(t._1()._1(), t._2()._1()),
-//                                Utility.tuple2(t._1()._2(), t._2()._2())
-//                        );
-//                    }
-//                })
-//                ;
-//
-//        TolerantNCC tolerantNCC = new TolerantNCC( imagePairs );
-//        tolerantNCC.ensurePersistence();
-//        List<Tuple2<Tuple2<Integer, Integer>, FPTuple>> tolerantMatrices =
-//                tolerantNCC.calculate(sc, blockRadius, new int[]{400, 400}, blockRadius, maxDistance, stop - start, range).collect();
-//
-//        sc.close();
-//
-//        System.out.println( tolerantMatrices.size() );
-
-
-
     }
-
-//    public static class CellsToSimilarities< K, M1 extends Map<Tuple2<Integer,Integer>, FPTuple>, M2 extends Map<Tuple2<Integer,Integer>,FPTuple>>
-//            implements PairFunction<Tuple2<K,Tuple2<M1,M2>>, K, HashMap< Tuple2<Integer,Integer>,Double>> {
-//
-//        private final long[] dims;
-//        private final long[] cellDims;
-//
-//        public CellsToSimilarities(long[] dims, long[] cellDims) {
-//            this.dims = dims;
-//            this.cellDims = cellDims;
-//        }
-//
-//        @Override
-//        public Tuple2<K, HashMap<Tuple2<Integer, Integer>, Double>> call(Tuple2<K, Tuple2<M1, M2>> t) throws Exception {
-//            // assume first image rests, second image is moved
-//            K key = t._1();
-//            Tuple2<M1, M2> pairedCells = t._2();
-//            M1 cells1 = pairedCells._1();
-//            M2 cells2 = pairedCells._2();
-//
-//            CellImgFactory<FloatType> factory = new CellImgFactory<FloatType>();
-//
-//            CellImg<FloatType, ?, ?> reference = factory.create(dims, new FloatType());
-//            CellImg<FloatType, ?, ?> moving = factory.create(dims, new FloatType());
-//
-//            copyToInterval( cells1, reference );
-//            copyToInterval( cells2, moving );
-//
-//            return null;
-//        }
-//
-//        public <M extends Map<Tuple2<Integer,Integer>, FPTuple > > void copyToInterval(M m, RandomAccessibleInterval< FloatType > img)
-//        {
-//            long[] currentMin = new long[2];
-//            RandomAccess<FloatType> ra = img.randomAccess();
-//            for ( Map.Entry<Tuple2<Integer, Integer>, FPTuple> entry : m.entrySet() )
-//            {
-//                Tuple2<Integer, Integer> pos = entry.getKey();
-//                currentMin[0] = pos._1() * cellDims[0];
-//                currentMin[1] = pos._2() * cellDims[1];
-//                FloatProcessor fp = entry.getValue().rebuild();
-//                int width = fp.getWidth();
-//                int height = fp.getHeight();
-//                for ( int y = 0; y < height; ++y ) {
-//                    ra.setPosition( currentMin[1] + y, 1 );
-//                    for (int x = 0; x < width; ++x) {
-//                        ra.setPosition( currentMin[0] + x, 0 );
-//                        ra.get().set( fp.getf( x, y ) );
-//                    }
-//                }
-//            }
-//        }
-//    }
 
 }
