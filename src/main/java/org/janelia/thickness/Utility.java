@@ -7,8 +7,7 @@ import ij.process.ImageProcessor;
 import loci.formats.FileStitcher;
 import loci.plugins.util.ImageProcessorReader;
 import mpicbg.trakem2.util.Downsampler;
-import net.imglib2.Cursor;
-import net.imglib2.RealRandomAccessible;
+import net.imglib2.*;
 import net.imglib2.converter.RealFloatConverter;
 import net.imglib2.converter.read.ConvertedRandomAccessibleInterval;
 import net.imglib2.img.Img;
@@ -20,15 +19,19 @@ import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.RealTransformRealRandomAccessible;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import net.imglib2.view.composite.RealComposite;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.lut.LUTRealTransform;
+import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
 import org.janelia.utility.io.IO;
 import scala.*;
 
@@ -40,6 +43,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Created by hanslovskyp on 9/18/15.
@@ -502,6 +508,51 @@ public class Utility {
         }
 
     }
+
+    public static < T extends RealType<T>> RandomAccessibleInterval<T> transform(
+            RandomAccessible<T> source,
+            RandomAccessibleInterval< T > target,
+            RandomAccessibleInterval< DoubleType > lut) throws InterruptedException {
+        Cursor<RealComposite<DoubleType>> lutCursor = Views.flatIterable( Views.collapseReal(lut) ).cursor();
+        ArrayList<Callable<Void>> callables = new ArrayList<Callable<Void>>();
+        ExecutorService es = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        long size = lut.dimension(2);
+        while( lutCursor.hasNext() )
+        {
+            lutCursor.fwd();
+            long x = lutCursor.getLongPosition(0);
+            long y = lutCursor.getLongPosition(1);
+            final RealRandomAccessible<T> sourceColumn =
+                    Views.interpolate(Views.hyperSlice(Views.hyperSlice(source, 1, y), 0, x), new NLinearInterpolatorFactory<T>());
+            final IntervalView<T> targetColumn = Views.hyperSlice(Views.hyperSlice(target, 1, y), 0, x);
+            final IntervalView<DoubleType> lutColumn = Views.hyperSlice(Views.hyperSlice(lut, 1, y), 0, x);
+
+            final IntervalView<T> targetColumn3D = Views.offsetInterval(target, new long[]{x, y, 0}, new long[]{1, 1, size});
+            final IntervalView<DoubleType> lutColumn3D = Views.offsetInterval(lut, new long[]{x, y, 0}, new long[]{1, 1, size});
+            final RealPoint p = new RealPoint( targetColumn3D.numDimensions() );
+
+            final SingleDimensionLUTRealTransformField transform = new SingleDimensionLUTRealTransformField(3, 3, lutColumn3D);
+            callables.add(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    RealRandomAccess<T> ra = sourceColumn.realRandomAccess();
+                    Cursor<T> c = Views.flatIterable(targetColumn3D).cursor();
+                    while (c.hasNext()) {
+                        T t = c.next();
+                        transform.apply(c, p);
+                        ra.setPosition( p.getDoublePosition( 2 ), 0 );
+                        t.set(ra.get());
+                    }
+                    return null;
+                }
+            });
+        }
+        System.out.println( "Invoking all column jobs." );
+        System.out.flush();
+        es.invokeAll( callables );
+        return target;
+    }
+
 
 //    public static class ColumnsToSections implements PairFunction< Tuple2< Tuple2< Integer, Integer >, double[] >, Integer, DPTuple >
 //    {

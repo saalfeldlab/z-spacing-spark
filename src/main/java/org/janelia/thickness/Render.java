@@ -215,7 +215,7 @@ public class Render {
 //                r.get().set(sourceRa.get());
 //            }
 
-            GenerateWave.transform( Views.extendValue( stack, new FloatType(Float.NaN ) ), resultImg, correctlySizedLut );
+            Utility.transform( Views.extendValue( stack, new FloatType(Float.NaN ) ), resultImg, correctlySizedLut );
             System.out.println( "Transformed image." );
 
             for ( int z = 0; z < resultImg.dimension( 2 ); ++z )
