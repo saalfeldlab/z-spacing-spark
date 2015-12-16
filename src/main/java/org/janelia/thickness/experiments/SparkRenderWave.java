@@ -1,4 +1,4 @@
-package org.janelia.thickness.utility;
+package org.janelia.thickness.experiments;
 
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
@@ -10,6 +10,8 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.utility.FPTuple;
+import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
 import java.io.IOException;

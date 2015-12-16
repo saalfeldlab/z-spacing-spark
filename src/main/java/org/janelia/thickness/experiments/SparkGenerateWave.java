@@ -1,4 +1,4 @@
-package org.janelia.thickness.utility;
+package org.janelia.thickness.experiments;
 
 import loci.formats.FileStitcher;
 import loci.formats.FormatException;

@@ -1,4 +1,4 @@
-/**/package org.janelia.thickness.utility;
+/**/package org.janelia.thickness.experiments;
 
 import ij.ImagePlus;
 import ij.process.FloatProcessor;

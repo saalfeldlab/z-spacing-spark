@@ -13,7 +13,7 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.FPTuple;
-import org.janelia.thickness.utility.Render;
+import org.janelia.thickness.experiments.Render;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.io.IO;
 import scala.Tuple2;
