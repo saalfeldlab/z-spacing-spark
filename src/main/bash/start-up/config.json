@@ -1,0 +1,23 @@
+{
+    "source": "SOURCE",
+    "mask": "MASK",
+    "target": "TARGET",
+    "start": START,
+    "stop": STOP,
+    "scale" : 0,
+    "defaultOptions": {
+        "shiftProportion": 0.6,
+        "nIterations": 100,
+        "gridRegularizationWeight": 0.0,
+        "minimumSectionThickness": 1e-08,
+        "withReorder": false,
+        "multiplierGenerationRegularizerWeight": 0.1,
+        "multiplierEstimationIterations": 10,
+        "coordinateUpdateRegularizerWeight": 0.0,
+        "comparisonRange": 20,
+        "forceMonotonicty": true
+    },
+    "options": [
+        OPTS
+    ]
+}
