@@ -162,6 +162,8 @@ public class ColumnsAndSections {
         @Override
         public Tuple2<Integer, DPTuple> call(Tuple2<Integer, HashMap<Tuple2<Integer, Integer>, Double>> t) throws Exception {
             DPTuple img = new DPTuple(dim[0], dim[1]);
+            for( int i = 0; i < img.pixels.length; ++i )
+                img.pixels[i] = Double.NaN;
             for (Map.Entry<Tuple2<Integer, Integer>, Double> entry : t._2().entrySet()) {
                 Tuple2<Integer, Integer> xy = entry.getKey();
                 img.pixels[Utility.xyToLinear(dim[0], xy._1(), xy._2())] = entry.getValue();

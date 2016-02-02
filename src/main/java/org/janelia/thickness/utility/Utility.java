@@ -267,6 +267,32 @@ public class Utility {
 
     }
 
+    public static class DownSampleImages< K > implements PairFunction< Tuple2< K, Tuple2<FPTuple, FPTuple> >, K, Tuple2<FPTuple, FPTuple > > {
+
+        private final int sampleScale;
+
+        /**
+         * @param sampleScale
+         */
+        public DownSampleImages(int sampleScale) {
+            super();
+            this.sampleScale = sampleScale;
+        }
+
+        private static final long serialVersionUID = -8634964011671381854L;
+
+        @Override
+        public Tuple2<K, Tuple2< FPTuple, FPTuple > > call(
+                Tuple2<K, Tuple2< FPTuple, FPTuple >> indexedFloatProcessorTuple ) throws Exception {
+            FloatProcessor downsampled =
+                    (FloatProcessor) Downsampler.downsampleImageProcessor(indexedFloatProcessorTuple._2()._1().rebuild(), sampleScale);
+            FloatProcessor downsampledMask =
+                    (FloatProcessor) Downsampler.downsampleImageProcessor(indexedFloatProcessorTuple._2()._2().rebuild(), sampleScale);
+            return Utility.tuple2( indexedFloatProcessorTuple._1(), Utility.tuple2( new FPTuple( downsampled ), new FPTuple( downsampledMask ) ) );
+        }
+
+    }
+
     public static class GaussianBlur< K > implements  PairFunction< Tuple2< K, FPTuple >, K, FPTuple > {
 
         private final double[] sigma;
@@ -464,6 +490,57 @@ public class Utility {
         @Override
         public Tuple2<K, String> call(K k) throws Exception {
             return Utility.tuple2( k, String.format( pattern, k ) );
+        }
+    }
+
+    public static class LoadFileFromPattern implements PairFunction< Integer, Integer, FPTuple > {
+
+        private final String pattern;
+
+        public LoadFileFromPattern(String pattern) {
+            this.pattern = pattern;
+        }
+
+        @Override
+        public Tuple2<Integer, FPTuple> call(Integer k) throws Exception {
+            String path = String.format(pattern, k.intValue());
+            FloatProcessor fp = new ImagePlus(path).getProcessor().convertToFloatProcessor();
+            return Utility.tuple2( k, new FPTuple( fp ) );
+        }
+    }
+
+    public static class LoadFileTupleFromPatternTuple implements PairFunction< Integer, Integer, Tuple2<FPTuple, FPTuple> > {
+
+        private final Tuple2<String, String> patternTuple;
+
+        public LoadFileTupleFromPatternTuple( String p1, String p2 )
+        {
+            this( Utility.tuple2( p1, p2 ) );
+        }
+
+        public LoadFileTupleFromPatternTuple(Tuple2<String, String> patternTuple) {
+            this.patternTuple = patternTuple;
+        }
+
+        @Override
+        public Tuple2<Integer, Tuple2<FPTuple, FPTuple> > call(Integer k) throws Exception {
+            String path = String.format(patternTuple._1(), k.intValue());
+            FloatProcessor fp = new ImagePlus(path).getProcessor().convertToFloatProcessor();
+            FloatProcessor fpMask = generateMask(patternTuple._2(), k.intValue(), fp);
+            return Utility.tuple2( k, Utility.tuple2( new FPTuple( fp ), new FPTuple( fpMask ) ) );
+        }
+
+        public static FloatProcessor generateMask( String pattern, int z, FloatProcessor image )
+        {
+            if ( pattern.isEmpty() )
+            {
+                FloatProcessor result = new FloatProcessor(image.getWidth(), image.getHeight());
+                result.add( 1.0 );
+                return result;
+            } else
+            {
+                return new ImagePlus( String.format( pattern, z ) ).getProcessor().convertToFloatProcessor();
+            }
         }
     }
 

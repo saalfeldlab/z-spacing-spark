@@ -129,7 +129,10 @@ public class GenerateWaveAttractivePotentials {
 
 
 //        long[] dim = new long[] { 200, 125, 240 };
-        long[] dim = new long[]{199, 124, 2070};
+//        long[] dim = new long[]{199, 124, 2070};
+//        long[] dim = new long[] { 799, 499, 475 };
+//        long[] dim = new long[] { 799, 104, 2500 };
+        long[] dim = new long[] { 399, 249, 475 };
         ArrayImg<DoubleType, DoubleArray> grid = ArrayImgs.doubles(dim);
         ArrayImg<DoubleType, DoubleArray> gridDeformation = ArrayImgs.doubles(dim);
 
@@ -146,7 +149,7 @@ public class GenerateWaveAttractivePotentials {
 
         Random rng = new Random(100);
 
-        int nWaves = 100;
+        int nWaves = 55;
 
         double[][] directions = new double[nWaves][];
         for ( int n = 0; n < nWaves; ++n )
@@ -171,9 +174,9 @@ public class GenerateWaveAttractivePotentials {
         double[] sigmas = new double[ directions.length ];
         for ( int i = 0; i < directions.length; ++i )
         {
-            directionWeights[i] = Math.abs( rng.nextGaussian()*0.10 + 0.15 );
-            offsets[i] = dim[2] *1.0/ nWaves*(i+0.5*rng.nextDouble());
-            sigmas[i] = 10*rng.nextDouble() + 27;
+            directionWeights[i] = 0.1 * Math.abs( rng.nextGaussian()*0.10 + 0.15 );
+            sigmas[i] = ( 10*rng.nextDouble() + 27 ) * 0.2;
+            offsets[i] = ( dim[2] - 2*27*0.2 ) * 1.0/ nWaves*(i+0.5*rng.nextDouble());
         }
 
 
@@ -197,7 +200,7 @@ public class GenerateWaveAttractivePotentials {
                 double main = (dir[0] * x + dir[1] * y) * 1.0 / (dir[0]+dir[1]);
                 double rev = (dir[1] * x + dir[0] * y) * 1.0 / (dir[0]+dir[1]);
                 GaussianPotential pot = new GaussianPotential(
-                        off + w*main + (x * y) * 1.0 / (dim[0] * dim[1]) * Math.sin(0.1*main) + Math.cos(2.0 * x / dim[0]) + (x * y) * 2.0 / (dim[0] * dim[1]) * Math.sin(0.01*main),
+                        off + w*main + (x * y) * 1.0 / (dim[0] * dim[1]) * Math.sin(0.1/1000*main) + Math.cos(2.0 / 1000 * x / dim[0]) + (x * y) * 2.0 / (dim[0] * dim[1]) * Math.sin(0.01 / 100 * main),
                         sigmas[n], 100);
                 l.add( pot );
             }

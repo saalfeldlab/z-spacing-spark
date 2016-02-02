@@ -16,6 +16,7 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
 import net.imglib2.realtransform.RealViews;
+import net.imglib2.realtransform.Scale2D;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
@@ -53,23 +54,21 @@ public class SparkRender {
         final ScaleOptions options = ScaleOptions.createFromFile(configPath);
         final int[] radii = options.radii[iteration];
         final int[] steps = options.steps[iteration];
-        final int scale = options.scale;
+        final double scale = Math.pow( 2, options.scale );
+        final int start = options.start;
+        final int stop = options.stop;
         final String sourceFormat = options.source;
         final String transformFormat = options.target + String.format( "/%02d/backward/", iteration ) + "%04d.tif";
 
 //        final String outputFormat = args[4];
 
-        boolean isPattern = Pattern.compile(".*<\\d+-\\d+>.*").matcher(sourceFormat).matches(); // fileName.indexOf( "%" ) > -1;
-        FileStitcher reader = new FileStitcher(isPattern);
-        reader.setId(sourceFormat);
+        ImagePlus img0 = new ImagePlus(String.format(sourceFormat, start));
 
-        final int width = reader.getSizeX();
-        final int height = reader.getSizeY();
-        final int size = reader.getSizeZ(); // 201;//reader.getSizeZ();
+        final int width = img0.getWidth();
+        final int height = img0.getHeight();
+        final int size = stop - start;
 
         final long[] dim = new long[]{width, height, size};
-
-        reader.close();
 
 
 
@@ -92,7 +91,7 @@ public class SparkRender {
                         return arg0._1();
                     }
                 })
-                .mapToPair(new Utility.StackOpener(sourceFormat, isPattern))
+                .mapToPair(new Utility.LoadFileFromPattern(sourceFormat))
                 .cache();
 
         JavaPairRDD<Integer, FPTuple> transforms = sc
@@ -144,11 +143,13 @@ public class SparkRender {
             final double[] stepsDouble,
             final double[] radiiDouble,
             final long[] dim,
-            final int scale )
+            final double scale )
     {
 
         final int width = (int) dim[0];
         final int height = (int) dim[1];
+
+        final Scale2D scaleToOriginalTransform = new Scale2D(scale, scale);
 
         JavaPairRDD<Integer, Tuple2<FPTuple, Integer>> transformsToRequiredSectionsMapping = transforms
                 .mapToPair(new PairFunction<Tuple2<Integer, FPTuple>, Integer, Tuple2<FPTuple, HashSet<Integer>>>() {
@@ -157,13 +158,16 @@ public class SparkRender {
                         HashSet<Integer> s = new HashSet<Integer>();
                         // why need to generate high res image?
                         FPTuple transformFP = t._2();
-                        ArrayImg<FloatType, FloatArray> transformImg = ArrayImgs.floats(transformFP.pixels, transformFP.width, transformFP.height);
+                        ArrayImg<FloatType, FloatArray> transformImg
+                                = ArrayImgs.floats(transformFP.pixels, transformFP.width, transformFP.height);
                         RealRandomAccessible<FloatType> extendedAndInterpolatedTransform
                                 = Views.interpolate(Views.extendBorder(transformImg), new NLinearInterpolatorFactory<FloatType>());
                         RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledTransformImg
                                 = RealViews.transform(extendedAndInterpolatedTransform, new ScaleAndShift(stepsDouble, radiiDouble));
+                        RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledToOriginalResolutionImg
+                                = RealViews.transform(scaledTransformImg, new Scale2D(scale, scale) );
                         Cursor<FloatType> c =
-                                Views.flatIterable(Views.interval(Views.raster(scaledTransformImg), new FinalInterval(width, height))).cursor();
+                                Views.flatIterable(Views.interval(Views.raster(scaledToOriginalResolutionImg), new FinalInterval(width, height))).cursor();
 //                        for (float p : t._2().pixels) {
                         while( c.hasNext() ) {
                             float p = c.next().get();
@@ -255,7 +259,9 @@ public class SparkRender {
                                 = Views.interpolate(Views.extendBorder(transformImg), new NLinearInterpolatorFactory<FloatType>());
                         RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledTransformImg
                                 = RealViews.transform(extendedAndInterpolatedTransform, new ScaleAndShift(stepsDouble, radiiDouble));
-                        RealRandomAccess<FloatType> transformRA = scaledTransformImg.realRandomAccess();
+                        RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledToOriginalResolutionImg
+                                = RealViews.transform(scaledTransformImg, new Scale2D(scale, scale) );
+                        RealRandomAccess<FloatType> transformRA = scaledToOriginalResolutionImg.realRandomAccess();
                         float[] targetPixels = new float[(int) dim[0] * (int) dim[1]];
                         new FloatProcessor( (int)dim[0], (int)dim[1], targetPixels ).add(Double.NaN);
                         for (ArrayCursor<FloatType> c = ArrayImgs.floats(targetPixels, dim[0], dim[1]).cursor(); c.hasNext(); ) {

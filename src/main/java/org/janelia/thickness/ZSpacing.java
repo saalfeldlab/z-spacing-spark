@@ -44,23 +44,44 @@ public class ZSpacing {
             ScaleOptions scaleOptions ) throws FormatException, IOException
     {
 //        new ImageJ();
-        final String fileName = scaleOptions.source;
+        final String sourcePattern = scaleOptions.source;
+        final String maskPattern = scaleOptions.mask;
         final String root = scaleOptions.target;
         final String outputFolder = root + "/%02d";
         final int imageScaleLevel = scaleOptions.scale;
-        boolean isPattern = Pattern.compile( ".*<\\d+-\\d+>.*" ).matcher( fileName ).matches(); // fileName.indexOf( "%" ) > -1;
-        FileStitcher reader = new FileStitcher( isPattern );
-        reader.setId( fileName );
+        final int start = scaleOptions.start;
+        final int stop = scaleOptions.stop;
+//        FileStitcher reader = new FileStitcher( isPattern );
+//        reader.setId( fileName );
 
-        final int size   = reader.getSizeZ(); // 201;//reader.getSizeZ();
-
-        reader.close();
+        final int size   = stop - start;
 
         final int[] blockSize = new int[] { 256, 256 };
 
 
         ArrayList<Integer> indices = Utility.arange(size);
-        JavaPairRDD<Integer, FPTuple> sections = sc
+//        JavaPairRDD<Integer, FPTuple> sections = sc
+//                .parallelize( indices )
+//                .mapToPair( new PairFunction<Integer, Integer, Integer>() {
+//
+//                    public Tuple2<Integer, Integer> call(Integer arg0) throws Exception {
+//                        return Utility.tuple2( arg0, arg0 );
+//                    }
+//                })
+//                .sortByKey()
+//                .map( new Function<Tuple2<Integer,Integer>, Integer>() {
+//
+//                    public Integer call(Tuple2<Integer, Integer> arg0) throws Exception {
+//                        return arg0._1();
+//                    }
+//                })
+//                .mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) )
+//                .mapToPair(new Utility.DownSample<Integer>(imageScaleLevel))
+////                .mapToPair( new Utility.GaussianBlur<Integer>( 2.0 ) )
+//                .cache()
+//                ;
+
+        JavaPairRDD<Integer, Tuple2<FPTuple, FPTuple>> sections = sc
                 .parallelize( indices )
                 .mapToPair( new PairFunction<Integer, Integer, Integer>() {
 
@@ -75,13 +96,13 @@ public class ZSpacing {
                         return arg0._1();
                     }
                 })
-                .mapToPair( new Utility.StackOpener( fileName, isPattern ) )
-                .mapToPair(new Utility.DownSample<Integer>(imageScaleLevel))
+                .mapToPair( new Utility.LoadFileTupleFromPatternTuple( sourcePattern, maskPattern ) )
+                .mapToPair(new Utility.DownSampleImages<Integer>(imageScaleLevel))
 //                .mapToPair( new Utility.GaussianBlur<Integer>( 2.0 ) )
                 .cache()
                 ;
 
-        FPTuple firstImg = sections.take(1).get(0)._2();
+        FPTuple firstImg = sections.take(1).get(0)._2()._1();
         int width = firstImg.width;
         int height = firstImg.height;
 
@@ -112,7 +133,7 @@ public class ZSpacing {
         for ( int i = 0; i < size; ++i )
             indexPairs.put(i, Utility.arange(i + 1, Math.min(i + maxRange + 1, size)));
 
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> sectionPairs =
+        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<FPTuple, FPTuple>, Tuple2<FPTuple, FPTuple>>> sectionPairs =
                 JoinFromList.projectOntoSelf(sections, sc.broadcast(indexPairs)).cache();
 
 //        MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs(sc, sectionPairs, dim, size);
@@ -219,6 +240,13 @@ public class ZSpacing {
 
             System.out.println("Calculated " + matrices.cache().count() + " matrices");
             System.out.println(Arrays.toString(dim) + " " + Arrays.toString( currentOffset ) + " " + Arrays.toString( currentStep ) + matrices.take(1).get(0)._1() );
+
+            String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
+            List<Tuple2<Tuple2<Integer, Integer>, Boolean>> successMatrices = matrices
+                    .mapToPair(new Utility.WriteToFormatString<Tuple2<Integer, Integer>>(outputFormatMatrices))
+                    .collect()
+                    ;
+
 //            final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices;
 //            if ( i == 0 ) //  && currentDim[0] * currentDim[1] < size * options[ i ].comparisonRange )
 //            {
@@ -310,12 +338,6 @@ public class ZSpacing {
             String outputFormatBackward = String.format( outputFolder, i ) + "/backward/%04d.tif";
             List<Tuple2<Integer, Boolean>> successBackward = backwardImages
                     .mapToPair( new Utility.WriteToFormatStringDouble<Integer>( outputFormatBackward ) )
-                    .collect()
-                    ;
-
-            String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
-            List<Tuple2<Tuple2<Integer, Integer>, Boolean>> successMatrices = matrices
-                    .mapToPair(new Utility.WriteToFormatString<Tuple2<Integer, Integer>>(outputFormatMatrices))
                     .collect()
                     ;
 //
