@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>saalfeldlab</groupId>
     <artifactId>z_spacing-spark-scala</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.3-SNAPSHOT</version>
     <inceptionYear>2015</inceptionYear>
 
     <repositories>
@@ -25,7 +25,7 @@
         <dependency>
             <groupId>saalfeldlab</groupId>
             <artifactId>z_spacing</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.0.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>ome</groupId>
@@ -77,6 +77,11 @@
             <groupId>sc.fiji</groupId>
             <artifactId>imagescience</artifactId>
             <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreechart</artifactId>
+            <version>1.0.19</version>
         </dependency>
         <!--<dependency>-->
             <!--<groupId>org.scala-lang</groupId>-->
