@@ -46,7 +46,7 @@ while [ $STAGE -lt $STAGES ]; do
     if [ $STAGE -gt 0 ]; then
         OPTS="$OPTS,\n \
     \"inference\": {\n \
-        \"regularizationType\": NONE,\n \
+        \"regularizationType\": \"NONE\",\n \
         \"coordinateUpdateRegularizerWeight\": `expr \"0.1*$STAGE\" | bc`,\n \
         \"comparisonRange\": 20\n \
     }"
