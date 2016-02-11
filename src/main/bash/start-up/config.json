@@ -15,6 +15,7 @@
         "multiplierEstimationIterations": 10,
         "coordinateUpdateRegularizerWeight": 0.0,
         "comparisonRange": 20,
+        "regularizationType": "BORDER",
         "forceMonotonicty": true
     },
     "options": [
