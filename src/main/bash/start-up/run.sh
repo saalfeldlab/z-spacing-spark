@@ -8,5 +8,5 @@ JAR=${JAR:-$HOME/z_spacing-spark-scala-0.0.3-SNAPSHOT.jar}
 CLASS=org.janelia.thickness.ZSpacing
 CONFIG=$ROOT_DIR/config.json
 SCALE=0
-$INFLAME $N_NODES $JAR $CLASS $CONFIG
+$INFLAME $N_NODES $JAR $CLASS $CONFIG  >> runs.log
 chmod -w $CONFIG
