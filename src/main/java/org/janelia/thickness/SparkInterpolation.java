@@ -288,7 +288,7 @@ public class SparkInterpolation {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         SparkConf conf = new SparkConf().setAppName("InterpolationTest").setMaster("local");
         JavaSparkContext sc = new JavaSparkContext(conf);
         final int[] dim = new int[]{20, 20};
@@ -300,6 +300,7 @@ public class SparkInterpolation {
         CorrelationBlocks cbs1 = new CorrelationBlocks(radii1, steps1);
         CorrelationBlocks cbs2 = new CorrelationBlocks(radii2, steps2);
 
+        // create rdd with local coordinates of r = [5,5], s = [5,5] and values =
         ArrayList<CorrelationBlocks.Coordinate> init = cbs1.generateFromBoundingBox(dim);
         JavaPairRDD<Tuple2<Integer, Integer>, double[]> rdd = sc
                 .parallelize(init)
@@ -314,6 +315,7 @@ public class SparkInterpolation {
 
         List<Tuple2<Tuple2<Integer, Integer>, double[]>> rddCollected = rdd.collect();
 
+        // map from cbs2 into cbs1
         ArrayList<CorrelationBlocks.Coordinate> newCoords = cbs2.generateFromBoundingBox(dim);
         ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> mapping = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>>();
         for( CorrelationBlocks.Coordinate n : newCoords )
@@ -322,13 +324,14 @@ public class SparkInterpolation {
         }
 
 
+        // inteprolate using map from cbs2 into cbs1
         JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = interpolate(sc, rdd, sc.broadcast(mapping),sourceDim);
 
         List<Tuple2<Tuple2<Integer, Integer>, double[]>> interpolCollected = interpol.collect();
 
         sc.close();
 
-        ArrayImg<DoubleType, DoubleArray> sourceImg = ArrayImgs.doubles(3, 3);
+        ArrayImg<DoubleType, DoubleArray> sourceImg = ArrayImgs.doubles(sourceDim[0], sourceDim[1]);
 
 
         ArrayRandomAccess<DoubleType> ra = sourceImg.randomAccess();
@@ -347,16 +350,22 @@ public class SparkInterpolation {
                 RealViews.transform(Views.interpolate(Views.extendBorder(sourceImg), new NLinearInterpolatorFactory<DoubleType>()), tf);
 
 
-        for( Tuple2<Tuple2<Integer, Integer>, double[]> bla : rddCollected )
-        {
-            System.out.println( bla._1() + Arrays.toString( bla._2() ) );
-        }
-        System.out.println(interpolCollected.size());
+//        for( Tuple2<Tuple2<Integer, Integer>, double[]> bla : rddCollected )
+//        {
+//            System.out.println( bla._1() + Arrays.toString( bla._2() ) );
+//        }
+//        System.out.println(interpolCollected.size());
+
+        Thread.sleep( 3000 );
+        System.out.println( interpolCollected.size() );
+        System.out.println( "Comparing..." );
+
         RandomAccess<DoubleType> t = transformed.randomAccess();
-        for ( Tuple2<Tuple2<Integer, Integer>, double[]> bla : interpolCollected )
+        for ( Tuple2<Tuple2<Integer, Integer>, double[]> iCol : interpolCollected )
         {
-            t.setPosition(new int[]{bla._1()._1(), bla._1()._2()});
-            System.out.println( bla._1() + Arrays.toString( bla._2() ) + " " + t.get().get() );
+            t.setPosition(new int[]{iCol._1()._1(), iCol._1()._2()});
+            if ( Math.abs( iCol._2()[0] - t.get().get() ) > 1e-10 )
+                System.out.println( iCol._1() + Arrays.toString( iCol._2() ) + " " + t.get().get() );
         }
 
     }

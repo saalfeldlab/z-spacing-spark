@@ -43,45 +43,20 @@ public class ZSpacing {
             JavaSparkContext sc,
             ScaleOptions scaleOptions ) throws FormatException, IOException
     {
-//        new ImageJ();
+
         final String sourcePattern = scaleOptions.source;
-        final String maskPattern = scaleOptions.mask;
-        final String root = scaleOptions.target;
+
+        final String root         = scaleOptions.target;
         final String outputFolder = root + "/%02d";
         final int imageScaleLevel = scaleOptions.scale;
+
         final int start = scaleOptions.start;
-        final int stop = scaleOptions.stop;
-//        FileStitcher reader = new FileStitcher( isPattern );
-//        reader.setId( fileName );
-
-        final int size   = stop - start;
-
-        final int[] blockSize = new int[] { 256, 256 };
+        final int stop  = scaleOptions.stop;
+        final int size  = stop - start;
 
 
         ArrayList<Integer> indices = Utility.arange(size);
-//        JavaPairRDD<Integer, FPTuple> sections = sc
-//                .parallelize( indices )
-//                .mapToPair( new PairFunction<Integer, Integer, Integer>() {
-//
-//                    public Tuple2<Integer, Integer> call(Integer arg0) throws Exception {
-//                        return Utility.tuple2( arg0, arg0 );
-//                    }
-//                })
-//                .sortByKey()
-//                .map( new Function<Tuple2<Integer,Integer>, Integer>() {
-//
-//                    public Integer call(Tuple2<Integer, Integer> arg0) throws Exception {
-//                        return arg0._1();
-//                    }
-//                })
-//                .mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) )
-//                .mapToPair(new Utility.DownSample<Integer>(imageScaleLevel))
-////                .mapToPair( new Utility.GaussianBlur<Integer>( 2.0 ) )
-//                .cache()
-//                ;
-
-        JavaPairRDD<Integer, Tuple2<FPTuple, FPTuple>> sections = sc
+        JavaPairRDD<Integer, FPTuple> sections = sc
                 .parallelize( indices )
                 .mapToPair( new PairFunction<Integer, Integer, Integer>() {
 
@@ -96,13 +71,12 @@ public class ZSpacing {
                         return arg0._1();
                     }
                 })
-                .mapToPair( new Utility.LoadFileTupleFromPatternTuple( sourcePattern, maskPattern ) )
-                .mapToPair(new Utility.DownSampleImages<Integer>(imageScaleLevel))
-//                .mapToPair( new Utility.GaussianBlur<Integer>( 2.0 ) )
+                .mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) )
+                .mapToPair(new Utility.DownSample<Integer>(imageScaleLevel))
                 .cache()
                 ;
 
-        FPTuple firstImg = sections.take(1).get(0)._2()._1();
+        FPTuple firstImg = sections.take(1).get(0)._2();
         int width = firstImg.width;
         int height = firstImg.height;
 
@@ -133,17 +107,12 @@ public class ZSpacing {
         for ( int i = 0; i < size; ++i )
             indexPairs.put(i, Utility.arange(i + 1, Math.min(i + maxRange + 1, size)));
 
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<FPTuple, FPTuple>, Tuple2<FPTuple, FPTuple>>> sectionPairs =
+        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> sectionPairs =
                 JoinFromList.projectOntoSelf(sections, sc.broadcast(indexPairs)).cache();
 
-//        MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs(sc, sectionPairs, dim, size);
-//        matrixGenerator.ensurePersistence();
-        TolerantNCC tolerantNCC = new TolerantNCC(sectionPairs);
-        tolerantNCC.ensurePersistence();
+        MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs(sc, sectionPairs, dim, size);
+        matrixGenerator.ensurePersistence();
 
-//        new ImageJ();
-
-//        IJ.log( Arrays.toString( dim ) );
 
         for ( int i = 0; i < radiiArray.length; ++i )
         {
@@ -177,18 +146,6 @@ public class ZSpacing {
             }
 
 
-//            ArrayList<Tuple2<Integer, Integer>> xyCoordinates = new ArrayList<Tuple2<Integer, Integer>>();
-//            HashMap<Tuple2<Integer, Integer>, Tuple2<Integer, Integer>> globalCoordinatesTolocalCoordinatesMapping =
-//                    new HashMap<Tuple2<Integer, Integer>, Tuple2<Integer, Integer>>();
-//            for ( int xLocal = 0, x = currentOffset[0]; x + currentOffset[0] < dim[0]; x += currentStep[0], ++xLocal )
-//            {
-//                for ( int yLocal = 0, y = currentOffset[1]; y + currentOffset[1] < dim[1]; y += currentStep[1], ++yLocal )
-//                {
-//                    Tuple2<Integer, Integer> t = Utility.tuple2(x, y);
-//                    xyCoordinates.add(t);
-////                    globalCoordinatesTolocalCoordinatesMapping.put( t, Utility.tuple2( xLocal, yLocal ) );
-//                }
-//            }
             // min and max of previous step
             final Tuple2<Integer, Integer> xMinMax;
             final Tuple2<Integer, Integer> yMinMax;
@@ -196,7 +153,7 @@ public class ZSpacing {
             {
                 Tuple2<Integer, Integer> t = Utility.tuple2(currentOffset[0], currentOffset[1]);
                 xyCoordinates.add(t);
-//                globalCoordinatesTolocalCoordinatesMapping.put( t, t );
+
                 xMinMax = Utility.tuple2( previousOffset[0], previousOffset[0] );
                 yMinMax = Utility.tuple2( previousOffset[1], previousOffset[1] );
             }
@@ -221,22 +178,13 @@ public class ZSpacing {
                 }
                 currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim );
             }
-//            JavaPairRDD<Tuple2<Integer, Integer>, double[]> currentCoordinates =
-//                    SparkInterpolation.interpolate2D( sc, coordinates, sc.parallelize( xyCoordinates ), xMinMax, yMinMax, currentStep, currentOffset, previousStep, previousOffset, size );
+
             currentCoordinates.cache().count();
             System.out.println( "Calculated " + currentCoordinates.count() + " coordinates" );
 
 
-//             JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices = matrixGenerator.generateMatrices(currentStep, currentOffset, options[i].comparisonRange);
-            JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices =
-                    tolerantNCC.calculate(
-                            sc,
-                            currentOffset,
-                            currentStep,
-                            correlationBlockRadiiArray[i],
-                            maxOffsetsArray[i],
-                            size,
-                            options[i].comparisonRange);
+             JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices = matrixGenerator.generateMatrices(currentStep, currentOffset, options[i].comparisonRange);
+
 
             System.out.println("Calculated " + matrices.cache().count() + " matrices");
             System.out.println(Arrays.toString(dim) + " " + Arrays.toString( currentOffset ) + " " + Arrays.toString( currentStep ) + matrices.take(1).get(0)._1() );
@@ -247,25 +195,7 @@ public class ZSpacing {
                     .collect()
                     ;
 
-//            final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices;
-//            if ( i == 0 ) //  && currentDim[0] * currentDim[1] < size * options[ i ].comparisonRange )
-//            {
-//                System.out.println( "i=" + i + " collection from few large blocks" );
-//                matrices = matrixCalculatorFewLarge
-//                        .generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
-//            }
-//            else
-//            {
-//                System.out.println( "i=" + i + " collection from many small blocks" );
-//                matrixCalculatorManySmall.ensureBlockExecution();
-//                sections.unpersist();
-//
-//                matrices = matrixCalculatorManySmall.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
-//
-//            }
-
             System.out.println(currentCoordinates.take(1).get(0)._1());
-//            new ImagePlus( "", matrices.take(1).get(0)._2().rebuild() ).show();
 
             System.out.println( "Before inference." );
             System.out.println( options[i].toString() + " " + options[i].comparisonRange );
@@ -288,22 +218,6 @@ public class ZSpacing {
             ByteProcessor ip = LogSuccessAndFailure.log(sc, result, currentDim);
             IO.createDirectoryForFile( successAndFailurePath );
             System.out.println("Wrote status image? " + new FileSaver(new ImagePlus("", ip)).saveAsTiff(successAndFailurePath));
-
-//            // for test pruposes remove one column at (3,3):
-//            if ( i > 1 )
-//            {
-//                result = result.mapToPair(new PairFunction<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Integer, Integer>, double[]>() {
-//                    @Override
-//                    public Tuple2<Tuple2<Integer, Integer>, double[]> call(Tuple2<Tuple2<Integer, Integer>, double[]> t) throws Exception {
-//                        if ( t._1().equals( Utility.tuple2( 3, 3 ) ) )
-//                            return Utility.tuple2( t._1(), null );
-//                        else
-//                            return t;
-//                    }
-//                });
-//            }
-
-//            IJ.log(StringUtils.join( result.collectAsMap().keySet(), ',' ) );
 
             ColumnsAndSections columnsAndSections = new ColumnsAndSections(currentDim, size);
             JavaPairRDD<Integer, DPTuple> coordinateSections = columnsAndSections.columnsToSections(sc, result);
