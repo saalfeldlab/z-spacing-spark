@@ -1,5 +1,6 @@
 package org.janelia.thickness;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -11,6 +12,7 @@ import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.array.ArrayRandomAccess;
 import net.imglib2.img.basictypeaccess.array.DoubleArray;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
 import net.imglib2.realtransform.RealViews;
@@ -19,7 +21,6 @@ import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
@@ -35,16 +36,14 @@ public class SparkInterpolation {
             final JavaSparkContext sc,
             final JavaPairRDD< Tuple2< Integer, Integer >, double[] > source,
             final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates,
-            int[] dim )
+            int[] dim,
+            MatchCoordinates.Matcher matcher )
     {
-//        JavaPairRDD<Tuple2<Integer, Integer>, double[]> result = source
+
         JavaPairRDD<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>> coordinateMatches =
-                source.flatMapToPair(new MatchCoordinates(newCoordinatesToOldCoordinates, dim));
+                source.flatMapToPair(new MatchCoordinates(newCoordinatesToOldCoordinates, dim, matcher));
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<double[], Double>> mapNewToOld = coordinateMatches.mapToPair(new SwapKey());
-//        for( Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>> mnto : mapNewToOld.collect() )
-//        {
-//            System.out.println( mnto._1() + Arrays.toString(mnto._2()._1()) + mnto._2()._2() );
-//        }
+
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<double[], Double>> weightedArrays = mapNewToOld.mapToPair(new WeightedArrays());
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<double[], Double>> reducedArrays = weightedArrays.reduceByKey(new ReduceArrays());
         JavaPairRDD<Tuple2<Integer, Integer>, double[]> result = reducedArrays.mapToPair(new NormalizeBySumOfWeights());
@@ -57,33 +56,79 @@ public class SparkInterpolation {
             Tuple2<Tuple2<Integer, Integer>, double[]>,
             Tuple2<Tuple2<Integer, Integer>, Double>> {
 
+        public static interface Matcher extends Serializable
+        {
+            public void call(
+                    Tuple2< Double, Double > newPointInOldCoordinates,
+                    Tuple2<Integer, Integer> newCoordinateGrid,
+                    Tuple2< Integer, Integer > oldCoordinateGrid,
+                    List< Tuple2< Tuple2< Integer, Integer >, Double > > associateWithNewCoordinatesGridAndWeights,
+                    int[] dim
+                    );
+        }
+
+        public static class NearestNeighborMatcher implements Matcher
+        {
+
+            @Override
+            public void call(
+                    Tuple2<Double, Double> newPointInOldCoordinates,
+                    Tuple2<Integer, Integer> newCoordinateGrid,
+                    Tuple2<Integer, Integer> oldCoordinateGrid,
+                    List<Tuple2<Tuple2<Integer, Integer>, Double>> associateWithNewCoordinatesGridAndWeights,
+                    int[] dim) {
+
+                if (
+                        Math.round( newPointInOldCoordinates._1() ) == oldCoordinateGrid._1().intValue()  &&
+                        Math.round( newPointInOldCoordinates._2() ) == oldCoordinateGrid._2().intValue()
+                        )
+                    associateWithNewCoordinatesGridAndWeights.add( Utility.tuple2( newCoordinateGrid, 1.0 ) );
+
+            }
+        }
+
+        public static class NLinearMatcher implements Matcher
+        {
+
+            @Override
+            public void call(
+                    Tuple2<Double, Double> newPointInOldCoordinates,
+                    Tuple2<Integer, Integer> newCoordinateGrid,
+                    Tuple2<Integer, Integer> oldCoordinateGrid,
+                    List<Tuple2<Tuple2<Integer, Integer>, Double>> associateWithNewCoordinatesGridAndWeights,
+                    int[] dim) {
+
+                double diff1 = Math.abs(newPointInOldCoordinates._1() - oldCoordinateGrid._1().doubleValue());
+                double diff2 = Math.abs(newPointInOldCoordinates._2() - oldCoordinateGrid._2().doubleValue());
+                if (diff1 <= 1.0 && diff2 <= 1.0) {
+                    associateWithNewCoordinatesGridAndWeights.add(Utility.tuple2(newCoordinateGrid, (1.0 - diff1) * (1.0 - diff2)));
+                }
+
+            }
+        }
+
         private final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates;
         private final int[] dim;
+        private final Matcher matcher;
 
         public MatchCoordinates(
                 Broadcast<? extends List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>>> newCoordinatesToOldCoordinates,
-                final int[] dim ) {
+                final int[] dim,
+                final Matcher matcher ) {
             this.newCoordinatesToOldCoordinates = newCoordinatesToOldCoordinates;
             this.dim = dim;
-        }
-
-        public double restrictToDimension( double val, int dimension )
-        {
-            return Math.min( Math.max( val, 0 ), dim[dimension] - 1 );
+            this.matcher = matcher;
         }
 
         @Override
         public Iterable<Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>>>
         call(final Tuple2<Tuple2<Integer, Integer>, double[]> t) throws Exception {
-            final Tuple2<Integer, Integer> oldSpaceInt = t._1();
+            final Tuple2<Integer, Integer> oldCoordinateGrid = t._1();
             final ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>> associations = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>>();
             for (Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> c : newCoordinatesToOldCoordinates.getValue()) {
-                Tuple2<Double, Double> oldSpaceDouble = c._2();
-                double diff1 = Math.abs(oldSpaceDouble._1() - oldSpaceInt._1().doubleValue());
-                double diff2 = Math.abs(oldSpaceDouble._2() - oldSpaceInt._2().doubleValue());
-                if (diff1 <= 1.0 && diff2 <= 1.0) {
-                    associations.add(Utility.tuple2(c._1(), (1.0 - diff1) * (1.0 - diff2)));
-                }
+                Tuple2<Integer, Integer> newCoordinateGrid = c._1();
+                Tuple2<Double, Double> newPointInOldCoordinates = c._2();
+                matcher.call( newPointInOldCoordinates,  newCoordinateGrid, oldCoordinateGrid, associations, dim );
             }
 
             return new Iterable<Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>>>() {
@@ -161,132 +206,7 @@ public class SparkInterpolation {
     }
 
 
-    public static JavaPairRDD< Tuple2< Integer, Integer >, double[] > interpolate2D(
-            JavaSparkContext sc,
-            JavaPairRDD< Tuple2< Integer, Integer >, double[] > source,
-            JavaRDD< Tuple2< Integer, Integer > > target,
-            Tuple2< Integer, Integer > xMinMax,
-            Tuple2< Integer, Integer > yMinMax,
-            final int[] step,
-            final int[] offset,
-            final int[] otherStep,
-            final int[] otherOffset,
-            final int size
-    )
-    {
-        JavaPairRDD<Tuple2<Integer, Integer>, double[]> result = target
-                .flatMapToPair( new NearestNeighborsAtPreviousResolution(xMinMax, yMinMax, step, offset, otherStep, otherOffset) ) // current -> ( previous, weight )
-                .mapToPair( new Utility.Swap< Tuple2< Integer, Integer >, Tuple2< Integer, Integer >, Double >() ) // previous -> ( current, weight )
-                .join( source ) // previous -> ( ( current, weight ), coordinates )
-                .mapToPair( new SwapAndDrop() )// current -> ( coordinates, weight )
-                .aggregateByKey( new double[ size ], new SeqFunc(), new CombFunc() ) // current -> interpolated coordinate
-                ;
-        return result;
-    }
 
-
-    public static class NearestNeighborsAtPreviousResolution implements PairFlatMapFunction<
-            Tuple2<Integer,Integer>,
-            Tuple2<Integer,Integer>,
-            Tuple2< Tuple2<Integer,Integer>, Double> >
-    {
-
-        private static final long serialVersionUID = 3959200717225103805L;
-        private final Tuple2< Integer, Integer > xMinMax;
-        private final Tuple2< Integer, Integer > yMinMax;
-        private final int[] step;
-        private final int[] offset;
-        private final int[] otherStep;
-        private final int[] otherOffset;
-
-        public NearestNeighborsAtPreviousResolution(Tuple2<Integer, Integer> xMinMax,
-                                                    Tuple2<Integer, Integer> yMinMax, int[] step, int[] offset, int[] otherStep, int[] otherOffset) {
-            super();
-            this.xMinMax = xMinMax;
-            this.yMinMax = yMinMax;
-            this.step = step;
-            this.offset = offset;
-            this.otherStep = otherStep;
-            this.otherOffset = otherOffset;
-        }
-
-        public Iterable<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>> call(
-                Tuple2<Integer, Integer> t) throws Exception {
-            int x = t._1();
-            int y = t._2();
-
-            double xPrev = 1.0/( otherStep[0] ) * ( step[0]*x + offset[0] - otherOffset[0] );
-            double yPrev = 1.0/( otherStep[1] ) * ( step[1]*y + offset[1] - otherOffset[1] );
-            double xFloor = Math.floor( xPrev );
-            double yFloor = Math.floor( yPrev );
-            double xWeightUpper = xPrev - xFloor;
-            double yWeightUpper = yPrev - yFloor;
-            double xWeightLower = 1.0 - xWeightUpper;
-            double yWeightLower = 1.0 - yWeightUpper;
-
-            // check if calculated coordinates are within scope
-            int xLower = (int) Math.max( xMinMax._1(), Math.min( xMinMax._2(), xFloor ) );
-            int yLower = (int) Math.max( yMinMax._1(), Math.min( yMinMax._2(), yFloor ) );
-
-            int xUpper = Math.max( xMinMax._1(), Math.min( xMinMax._2(), xLower ) );
-            int yUpper = Math.max( yMinMax._1(), Math.min( yMinMax._2(), yLower ) );
-
-            ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Integer, Integer>, Double>>> result =
-                    new ArrayList<Tuple2<Tuple2<Integer,Integer>,Tuple2<Tuple2<Integer,Integer>,Double>>>();
-
-            result.add( Utility.tuple2( t, Utility.tuple2( Utility.tuple2( xLower, yLower ), xWeightLower*yWeightLower ) ) );
-            result.add( Utility.tuple2( t, Utility.tuple2( Utility.tuple2( xUpper, yLower ), xWeightUpper*yWeightLower ) ) );
-            result.add( Utility.tuple2( t, Utility.tuple2( Utility.tuple2( xLower, yUpper ), xWeightLower*yWeightUpper ) ) );
-            result.add( Utility.tuple2( t, Utility.tuple2( Utility.tuple2( xUpper, yUpper ), xWeightUpper*yWeightUpper ) ) );
-
-            return result;
-        }
-
-
-    }
-
-
-    public static class SwapAndDrop implements PairFunction<Tuple2<Tuple2<Integer,Integer>,Tuple2<Tuple2<Tuple2<Integer,Integer>,Double>,double[]>>, Tuple2<Integer,Integer>, Tuple2<double[],Double>>
-    {
-        private static final long serialVersionUID = 3144085356295505868L;
-
-        public Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>> call(
-                Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<Tuple2<Integer, Integer>, Double>, double[]>> t)
-                throws Exception {
-            Tuple2<Tuple2<Tuple2<Integer, Integer>, Double>, double[]> t2 = t._2();
-            double[] coord = t2._2();
-            Tuple2<Tuple2<Integer, Integer>, Double> t3 = t2._1();
-            return Utility.tuple2( t3._1(), Utility.tuple2( coord, t3._2() ) );
-        }
-    }
-
-
-    public static class SeqFunc implements Function2< double[], Tuple2<double[], Double>, double[]>
-    {
-        private static final long serialVersionUID = -151563405590411586L;
-
-        public double[] call(double[] a1, Tuple2<double[], Double> t)
-                throws Exception {
-            double[] a2 = t._1();
-            double w = t._2();
-            for ( int i = 0; i < a1.length; ++i )
-                a1[ i ] += w*a2[ i ];
-            return a1;
-        }
-    }
-
-
-    public static class CombFunc implements	Function2< double[], double[], double[]>
-    {
-        private static final long serialVersionUID = -8993745973702877369L;
-
-        public double[] call(double[] a1, double[] a2)
-                throws Exception {
-            for ( int i = 0; i < a1.length; ++i )
-                a1[ i ] += a2[ i ];
-            return a1;
-        }
-    }
 
     public static void main(String[] args) throws InterruptedException {
         SparkConf conf = new SparkConf().setAppName("InterpolationTest").setMaster("local");
@@ -325,9 +245,15 @@ public class SparkInterpolation {
 
 
         // inteprolate using map from cbs2 into cbs1
-        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = interpolate(sc, rdd, sc.broadcast(mapping),sourceDim);
+        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = interpolate(sc, rdd, sc.broadcast(mapping),sourceDim, new MatchCoordinates.NLinearMatcher());
 
         List<Tuple2<Tuple2<Integer, Integer>, double[]>> interpolCollected = interpol.collect();
+
+
+        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol2 = interpolate(sc, rdd, sc.broadcast(mapping), sourceDim, new MatchCoordinates.NearestNeighborMatcher());
+
+        List<Tuple2<Tuple2<Integer, Integer>, double[]>> interpolCollected2 = interpol2.collect();
+
 
         sc.close();
 
@@ -349,16 +275,14 @@ public class SparkInterpolation {
         RealTransformRandomAccessible<DoubleType, InverseRealTransform> transformed =
                 RealViews.transform(Views.interpolate(Views.extendBorder(sourceImg), new NLinearInterpolatorFactory<DoubleType>()), tf);
 
+        RealTransformRandomAccessible<DoubleType, InverseRealTransform> transformed2 =
+                RealViews.transform(Views.interpolate(Views.extendBorder(sourceImg), new NearestNeighborInterpolatorFactory<DoubleType>()), tf);
 
-//        for( Tuple2<Tuple2<Integer, Integer>, double[]> bla : rddCollected )
-//        {
-//            System.out.println( bla._1() + Arrays.toString( bla._2() ) );
-//        }
-//        System.out.println(interpolCollected.size());
 
         Thread.sleep( 3000 );
+        System.out.flush();
         System.out.println( interpolCollected.size() );
-        System.out.println( "Comparing..." );
+        System.out.println( "Comparing nlinear ..." );
 
         RandomAccess<DoubleType> t = transformed.randomAccess();
         for ( Tuple2<Tuple2<Integer, Integer>, double[]> iCol : interpolCollected )
@@ -368,6 +292,18 @@ public class SparkInterpolation {
                 System.out.println( iCol._1() + Arrays.toString( iCol._2() ) + " " + t.get().get() );
         }
 
+
+        System.out.flush();
+        System.out.println( interpolCollected.size() );
+        System.out.println( "Comparing nearest neighbor ..." );
+
+        RandomAccess<DoubleType> t2 = transformed2.randomAccess();
+        for ( Tuple2<Tuple2<Integer, Integer>, double[]> iCol : interpolCollected2 )
+        {
+            t2.setPosition(new int[]{iCol._1()._1(), iCol._1()._2()});
+            if ( Math.abs( iCol._2()[0] - t2.get().get() ) > 1e-10 )
+                System.out.println( iCol._1() + Arrays.toString( iCol._2() ) + " " + t2.get().get() );
+        }
     }
 
 
