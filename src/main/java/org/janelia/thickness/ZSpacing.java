@@ -3,7 +3,6 @@ package org.janelia.thickness;
 import ij.ImagePlus;
 import ij.io.FileSaver;
 import ij.process.ByteProcessor;
-import loci.formats.FileStitcher;
 import loci.formats.FormatException;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -13,7 +12,6 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.FPTuple;
-import org.janelia.thickness.experiments.Render;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.io.IO;
 import scala.Tuple2;
@@ -23,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public class ZSpacing {
 

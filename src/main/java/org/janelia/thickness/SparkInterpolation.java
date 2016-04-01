@@ -14,6 +14,7 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
 import net.imglib2.realtransform.RealViews;
+import net.imglib2.realtransform.ScaleAndTranslation;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
@@ -26,7 +27,6 @@ import org.apache.spark.api.java.function.PairFunction;
 
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
 
 public class SparkInterpolation {
@@ -341,7 +341,7 @@ public class SparkInterpolation {
             ra.get().set( rddC._2()[0] );
         }
 
-        ScaleAndShift tf = new ScaleAndShift(
+        ScaleAndTranslation tf = new ScaleAndTranslation(
                 new double[]{steps1[0] * 1.0 / steps2[0], steps1[1] * 1.0 / steps2[1]},
                 new double[]{(radii1[0] - radii2[0]) * 1.0 / steps2[0], (radii1[1] - radii2[1]) * 1.0 / steps2[1]}
         );
