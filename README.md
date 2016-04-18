@@ -32,6 +32,22 @@ You might need to join the version and scala version of the spark-core dependenc
 In general, real world data sets on a practical scale require distributed execution. Smaller examples, e.g. for exploratory experiments, can be run locally. Thus, we describe both distributed and local execution. Independent of the execution mode, the `org.janelia.thickness.ZSpacing` class that generates the estimates expects as only parameter a json config file (called `config.json` in the following) that specifies input and output patterns, as well as the number of hierarchies and inference settings for each hierarchy. We first describe the contents of `config.json` and then continue with instructions for both execution modes.
 
 #### `config.json`
+The `config.json` file contains information about source and target directories, as well as step size (resolution), block size (locality), and inference options for each stage. Inference options are passed on to subsequent stages but can overwritten. The easiest way to generate a `config.json` file is by running
+```bash
+cd <desired working directory>
+export SOURCE=<source pattern> # optional (default: $(realpath data)"/%04d.tif")
+export STAGES=<number of stages>
+Z_SPACING_DIR=</path/to/z-spacing-spark>
+${Z_SPACING_DIR}/src/main/bash/start-up/generate_script.sh <start index> <stop index>
+# creates EXPERIMENT_DIR=$PWD/$(date +%Y%m%d_%H%M%S)
+# and ${EXPERIMENT_DIR}/config.json
+```
+Within the Janelia environment, you can then start the cluster job from a login node:
+```bash
+cd ${EXPERIMENT_DIR}
+./run.sh <number of nodes>
+```
+
 
 #### Distributed
 Assuming that Apache Spark is running on your cluster, you can start your Spark job by running
