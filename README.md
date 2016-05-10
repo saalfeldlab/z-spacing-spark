@@ -16,7 +16,7 @@ With all prerequisites fulfilled, go to the project root directory and run
 ```bash
 mvn package
 ```
-which will create a jar file located in the `target` directory. Copy this file to a location that is accessible from your cluster.
+which will create `target/z_spacing-spark-${version}.jar`. Copy this file to a location that is accessible from your cluster.
 
 You might need to join the version and scala version of the spark-core dependency to adjust to your cluster settings before building the project. Also, if you want to run your code on your local machine, you should change the scope from provided to compile:
 ```xml
@@ -29,6 +29,47 @@ You might need to join the version and scala version of the spark-core dependenc
 ```
 
 ### Execution
+In general, real world data sets on a practical scale require distributed execution. Smaller examples, e.g. for exploratory experiments, can be run locally. Thus, we describe both distributed and local execution. Independent of the execution mode, the `org.janelia.thickness.ZSpacing` class that generates the estimates expects as only parameter a json config file (called `config.json` in the following) that specifies input and output patterns, as well as the number of hierarchies and inference settings for each hierarchy. We first describe the contents of `config.json` and then continue with instructions for both execution modes.
+
+#### `config.json`
+The `config.json` file contains information about source and target directories, as well as step size (resolution), block size (locality), and inference options for each stage. Inference options are passed on to subsequent stages but can overwritten. The easiest way to generate a `config.json` file is by running
+```bash
+cd <desired working directory>
+export SOURCE=<source pattern> # optional (default: $(realpath data)"/%04d.tif")
+export STAGES=<number of stages>
+Z_SPACING_DIR=</path/to/z-spacing-spark>
+${Z_SPACING_DIR}/src/main/bash/start-up/generate_script.sh <start index> <stop index>
+# creates EXPERIMENT_DIR=$PWD/$(date +%Y%m%d_%H%M%S)
+# and ${EXPERIMENT_DIR}/config.json
+```
+Within the Janelia environment, you can then start the cluster job from a login node:
+```bash
+cd ${EXPERIMENT_DIR}
+./run.sh <number of nodes>
+```
+
+
+#### Distributed
+Assuming that Apache Spark is running on your cluster, you can start your Spark job by running
+```bash
+export MASTER=<URL of master>
+$SPARK_HOME/bin/spark-submit --verbose \
+    --conf spark.default.parallelism=<desired parallelism> \
+    --class org.janelia.thickness.ZSpacing \
+    </path/to/z_spacing-spark-${version}.jar> \
+    </path/to/config.json>
+```
+
+#### Local
+To run `ZSpacing` locally, you need to set master to local. You can do that by passing -Dspark.master=local[*] to the jvm. If you run `ZSpacing` throuhg your IDE, you need to specify that setting of the jvm and pass `</path/to/config.json>` as argument in the run configurations. Alternatively, you can run `ZSpacing` outside your IDE by calling (assuming you are in the project root directory):
+```bash
+java \
+  -Dspark.master='local[*]' \
+  -cp target/z_spacing-spark-${version}.jar org.janelia.thickness.ZSpacing \ 
+  </path/to/config.json>`
+```
+It might be useful to specify `-Dspark.local.dir=</some/path>` (defaults to `/tmp`).
+
 
 ### Examples
 
