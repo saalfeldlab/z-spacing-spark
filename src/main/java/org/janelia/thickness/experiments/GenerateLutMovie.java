@@ -8,19 +8,17 @@ import net.imglib2.RealRandomAccessible;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.img.basictypeaccess.array.DoubleArray;
 import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.RealViews;
-import net.imglib2.type.numeric.real.DoubleType;
+import net.imglib2.realtransform.ScaleAndTranslation;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.janelia.thickness.ScaleOptions;
 import org.janelia.thickness.inference.Options;
 import org.janelia.utility.io.IO;
-import org.janelia.utility.realtransform.ScaleAndShift;
 
 import java.io.FileNotFoundException;
 import java.util.Arrays;
@@ -93,7 +91,7 @@ public class GenerateLutMovie {
             Img<FloatType> floorImage = ImageJFunctions.wrapFloat(floorImagePlus);
             Img<FloatType> ceilImage = ImageJFunctions.wrapFloat(ceilImagePlus);
 
-            ScaleAndShift imageTransform = new ScaleAndShift(new double[]{1.0, steps[otherAxisIndex], 1.0}, new double[]{0.0, radii[otherAxisIndex], 0.0});
+            ScaleAndTranslation imageTransform = new ScaleAndTranslation(new double[]{1.0, steps[otherAxisIndex], 1.0}, new double[]{0.0, radii[otherAxisIndex], 0.0});
 
 
 

@@ -3,15 +3,8 @@ package org.janelia.thickness;
 import ij.ImageJ;
 import ij.ImagePlus;
 import ij.io.FileSaver;
-import ij.plugin.filter.RankFilters;
-import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
-import imagescience.feature.Structure;
-import imagescience.image.Aspects;
-import imagescience.image.FloatImage;
-import imagescience.image.Image;
 import mpicbg.ij.integral.BlockPMCC;
-import mpicbg.ij.integral.BlockStatistics;
 import mpicbg.ij.integral.WeightedBlockPMCC;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -22,7 +15,9 @@ import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * Created by hanslovskyp on 11/19/15.
@@ -119,7 +114,7 @@ public class TolerantNCC {
 
         JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices = averagesIndexedByXYTuples
                 .reduceByKey(new Utility.ReduceMapsByUnion<Tuple2<Integer, Integer>, Double, HashMap<Tuple2<Integer, Integer>, Double>>())
-                .mapToPair(new MatrixGenerationFromImagePairs.MapToFPTuple(size))
+                .mapToPair(new MatrixGenerationFromImagePairs.MapToFPTuple(size, 0))
                 .cache()
                 ;
 

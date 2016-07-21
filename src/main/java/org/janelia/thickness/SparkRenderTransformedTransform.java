@@ -16,6 +16,7 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
 import net.imglib2.realtransform.RealViews;
+import net.imglib2.realtransform.ScaleAndTranslation;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
@@ -27,7 +28,6 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
 
 import java.io.IOException;
@@ -76,22 +76,23 @@ public class SparkRenderTransformedTransform {
 
         ArrayList<Integer> indices = Utility.arange(size);
         JavaPairRDD<Integer, FPTuple> sections = sc
-                .parallelize(indices)
-                .mapToPair(new PairFunction<Integer, Integer, Integer>() {
+                .parallelize( indices )
+                .mapToPair( new PairFunction<Integer, Integer, Integer>() {
 
                     public Tuple2<Integer, Integer> call(Integer arg0) throws Exception {
-                        return Utility.tuple2(arg0, arg0);
+                        return Utility.tuple2( arg0, arg0 );
                     }
                 })
                 .sortByKey()
-                .map(new Function<Tuple2<Integer, Integer>, Integer>() {
+                .map( new Function<Tuple2<Integer,Integer>, Integer>() {
 
                     public Integer call(Tuple2<Integer, Integer> arg0) throws Exception {
                         return arg0._1();
                     }
                 })
-                .mapToPair(new Utility.StackOpener(sourceFormat, isPattern))
-                .cache();
+                .mapToPair( new Utility.LoadFileFromPattern( sourceFormat ) )
+                .cache()
+                ;
 
         JavaPairRDD<Integer, FPTuple> transforms = sc
                 .parallelize(indices)
@@ -158,7 +159,7 @@ public class SparkRenderTransformedTransform {
                         RealRandomAccessible<FloatType> extendedAndInterpolatedTransform
                                 = Views.interpolate(Views.extendBorder(transformImg), new NLinearInterpolatorFactory<FloatType>());
                         RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledTransformImg
-                                = RealViews.transform(extendedAndInterpolatedTransform, new ScaleAndShift(stepsDouble, radiiDouble));
+                                = RealViews.transform(extendedAndInterpolatedTransform, new ScaleAndTranslation(stepsDouble, radiiDouble));
                         Cursor<FloatType> c =
                                 Views.flatIterable(Views.interval(Views.raster(scaledTransformImg), new FinalInterval(width, height))).cursor();
 //                        for (float p : t._2().pixels) {
@@ -251,7 +252,7 @@ public class SparkRenderTransformedTransform {
                         RealRandomAccessible<FloatType> extendedAndInterpolatedTransform
                                 = Views.interpolate(Views.extendBorder(transformImg), new NLinearInterpolatorFactory<FloatType>());
                         RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledTransformImg
-                                = RealViews.transform(extendedAndInterpolatedTransform, new ScaleAndShift(stepsDouble, radiiDouble));
+                                = RealViews.transform(extendedAndInterpolatedTransform, new ScaleAndTranslation(stepsDouble, radiiDouble));
                         RealRandomAccess<FloatType> transformRA = scaledTransformImg.realRandomAccess();
                         float[] targetPixels = new float[(int) dim[0] * (int) dim[1]];
                         new FloatProcessor( (int)dim[0], (int)dim[1], targetPixels ).add(Double.NaN);

@@ -132,7 +132,9 @@ public class GenerateWaveAttractivePotentials {
 //        long[] dim = new long[]{199, 124, 2070};
 //        long[] dim = new long[] { 799, 499, 475 };
 //        long[] dim = new long[] { 799, 104, 2500 };
-        long[] dim = new long[] { 399, 249, 475 };
+//        long[] dim = new long[] { 399, 249, 475 };
+//        long[] dim = new long[] { 299, 47, 100 };
+        long[] dim = new long[] { 47, 299, 100 };
         ArrayImg<DoubleType, DoubleArray> grid = ArrayImgs.doubles(dim);
         ArrayImg<DoubleType, DoubleArray> gridDeformation = ArrayImgs.doubles(dim);
 
@@ -149,7 +151,7 @@ public class GenerateWaveAttractivePotentials {
 
         Random rng = new Random(100);
 
-        int nWaves = 55;
+        int nWaves = 8;
 
         double[][] directions = new double[nWaves][];
         for ( int n = 0; n < nWaves; ++n )
@@ -187,8 +189,10 @@ public class GenerateWaveAttractivePotentials {
         for ( Cursor<RealComposite<DoubleType>> c = Views.flatIterable( Views.collapseReal( gridDeformation ) ).cursor(); c.hasNext(); )
         {
             c.fwd();
-            long x = c.getLongPosition(0);
-            long y = c.getLongPosition(1);
+            long X = c.getLongPosition(0);
+            long Y = c.getLongPosition(1);
+            double x = 6 * X;
+            double y = 1.0 / 6 * Y;
 //            double gaussian = rng.nextGaussian();
             ArrayList<Potential> l = new ArrayList<>();
             long stepSize = dim[2] / nWaves;
@@ -200,7 +204,8 @@ public class GenerateWaveAttractivePotentials {
                 double main = (dir[0] * x + dir[1] * y) * 1.0 / (dir[0]+dir[1]);
                 double rev = (dir[1] * x + dir[0] * y) * 1.0 / (dir[0]+dir[1]);
                 GaussianPotential pot = new GaussianPotential(
-                        off + w*main + (x * y) * 1.0 / (dim[0] * dim[1]) * Math.sin(0.1/1000*main) + Math.cos(2.0 / 1000 * x / dim[0]) + (x * y) * 2.0 / (dim[0] * dim[1]) * Math.sin(0.01 / 100 * main),
+                        off + w*main,
+//                        off + w*main + (x * y) * 1.0 / (dim[0] * dim[1]) * Math.sin(0.1/1000*main) + Math.cos(2.0 / 1000 * x / dim[0]) + (x * y) * 2.0 / (dim[0] * dim[1]) * Math.sin(0.01 / 100 * main),
                         sigmas[n], 100);
                 l.add( pot );
             }
@@ -214,7 +219,7 @@ public class GenerateWaveAttractivePotentials {
 //            l.add( potential1 );
 //            l.add( potential2 );
 //            l.add( potential3 );
-            potentials.put( Utility.tuple2( x, y ), l );
+            potentials.put( Utility.tuple2( X, Y ), l );
         }
 
 

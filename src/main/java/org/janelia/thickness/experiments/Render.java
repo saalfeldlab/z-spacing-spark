@@ -18,6 +18,7 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRealRandomAccessible;
 import net.imglib2.realtransform.RealViews;
+import net.imglib2.realtransform.ScaleAndTranslation;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.IntervalView;
@@ -32,7 +33,6 @@ import org.janelia.thickness.lut.SingleDimensionLUTRealTransform;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.io.IO;
-import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
 
 import java.io.FileNotFoundException;
@@ -170,7 +170,7 @@ public class Render {
             double[] scale2D = new double[]{step[0], step[1]};
             double[] radius2D = new double[]{radius[0], radius[1]};
 
-            ScaleAndShift collapsedTransform = new ScaleAndShift(scale2D, radius2D);
+            ScaleAndTranslation collapsedTransform = new ScaleAndTranslation(scale2D, radius2D);
 
             RealTransformRealRandomAccessible<RealComposite<DoubleType>, InverseRealTransform> collapsedTransformed
                     = RealViews.transformReal(extendedCollapsed, collapsedTransform);
@@ -188,7 +188,7 @@ public class Render {
             }
 
             // x = x'*s + r
-            ScaleAndShift transform = new ScaleAndShift(step, radius);
+            ScaleAndTranslation transform = new ScaleAndTranslation(step, radius);
 
             RealTransformRealRandomAccessible<DoubleType, InverseRealTransform> transformed = RealViews.transformReal(extendedLut, transform);
 

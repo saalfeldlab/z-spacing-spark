@@ -27,12 +27,14 @@ public class MatrixGenerationFromImagePairs {
     private final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2<FPTuple, FPTuple > > sectionPairs;
     private final int[] dim;
     private final int size;
+    private final int startIndex;
 
-    public MatrixGenerationFromImagePairs(JavaSparkContext sc, JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> sectionPairs, int[] dim, int size) {
+    public MatrixGenerationFromImagePairs(JavaSparkContext sc, JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> sectionPairs, int[] dim, int size, int startIndex) {
         this.sc = sc;
         this.sectionPairs = sectionPairs;
         this.dim = dim;
         this.size = size;
+        this.startIndex = startIndex;
     }
 
     public void ensurePersistence()
@@ -61,7 +63,7 @@ public class MatrixGenerationFromImagePairs {
         JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices = pairwiseCorrelations
                 .flatMapToPair(new ExchangeIndexOrder() )
                 .reduceByKey(new ReduceMaps())
-                .mapToPair(new MapToFPTuple(size) );
+                .mapToPair(new MapToFPTuple(size, startIndex) );
         matrices.cache().count();
         System.out.println( "Calculated matrices." );
 
@@ -184,9 +186,11 @@ public class MatrixGenerationFromImagePairs {
             Tuple2<Integer, Integer>, FPTuple> {
 
         private final int size;
+        private final int startIndex;
 
-        public MapToFPTuple(int size) {
+        public MapToFPTuple(int size, int startIndex) {
             this.size = size;
+            this.startIndex = startIndex;
         }
 
         @Override
@@ -197,8 +201,8 @@ public class MatrixGenerationFromImagePairs {
                 result.setf(z, z, 1.0f);
             for (Map.Entry<Tuple2<Integer, Integer>, Double> entry : t._2().entrySet()) {
                 Tuple2<Integer, Integer> xy = entry.getKey();
-                int x = xy._1();
-                int y = xy._2();
+                int x = xy._1() - startIndex;
+                int y = xy._2() - startIndex;
                 float val = entry.getValue().floatValue();
                 result.setf(x, y, val);
                 result.setf(y, x, val);

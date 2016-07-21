@@ -1,10 +1,5 @@
 package org.janelia.thickness;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-
 import net.imglib2.RandomAccess;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
@@ -14,6 +9,7 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
 import net.imglib2.realtransform.RealViews;
+import net.imglib2.realtransform.ScaleAndTranslation;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
@@ -23,11 +19,14 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
-
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
 public class SparkInterpolation {
 
@@ -78,11 +77,15 @@ public class SparkInterpolation {
             final Tuple2<Integer, Integer> oldSpaceInt = t._1();
             final ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>> associations = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>>();
             for (Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> c : newCoordinatesToOldCoordinates.getValue()) {
+
                 Tuple2<Double, Double> oldSpaceDouble = c._2();
-                double diff1 = Math.abs(oldSpaceDouble._1() - oldSpaceInt._1().doubleValue());
-                double diff2 = Math.abs(oldSpaceDouble._2() - oldSpaceInt._2().doubleValue());
-                if (diff1 <= 1.0 && diff2 <= 1.0) {
-                    associations.add(Utility.tuple2(c._1(), (1.0 - diff1) * (1.0 - diff2)));
+                Tuple2<Long, Long> oldCoordinatesRound = Utility.tuple2(
+                        Math.min(Math.max(Math.round(oldSpaceDouble._1()), 0), this.dim[0] - 1),
+                        Math.min(Math.max(Math.round(oldSpaceDouble._2()), 0), this.dim[1] - 1)
+                );
+                if (    oldCoordinatesRound._1().intValue() == oldSpaceInt._1().intValue() &&
+                        oldCoordinatesRound._2().intValue() == oldSpaceInt._2().intValue() ) {
+                    associations.add(Utility.tuple2(c._1(), 1.0 ));
                 }
             }
 
@@ -338,7 +341,7 @@ public class SparkInterpolation {
             ra.get().set( rddC._2()[0] );
         }
 
-        ScaleAndShift tf = new ScaleAndShift(
+        ScaleAndTranslation tf = new ScaleAndTranslation(
                 new double[]{steps1[0] * 1.0 / steps2[0], steps1[1] * 1.0 / steps2[1]},
                 new double[]{(radii1[0] - radii2[0]) * 1.0 / steps2[0], (radii1[1] - radii2[1]) * 1.0 / steps2[1]}
         );

@@ -2,7 +2,8 @@ package org.janelia.thickness.experiments;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
-import mpicbg.models.*;
+import mpicbg.models.IllDefinedDataPointsException;
+import mpicbg.models.NotEnoughDataPointsException;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.RealRandomAccessible;
@@ -12,6 +13,7 @@ import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.RealViews;
+import net.imglib2.realtransform.ScaleAndTranslation;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
@@ -19,11 +21,13 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.ScaleOptions;
 import org.janelia.thickness.utility.FPTuple;
 import org.janelia.utility.io.IO;
-import org.janelia.utility.realtransform.ScaleAndShift;
 import scala.Tuple2;
 
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -55,7 +59,7 @@ public class ScaleToDimension {
             ScaleOptions config,
             int startIndex,
             int lastIndex
-    ) throws InterruptedException {
+    ) throws InterruptedException, IOException {
 
         double[] targetRadius = new double[]{config.radii[lastIndex][0], config.radii[lastIndex][1]};
         double[] targetStep   = new double[]{config.steps[lastIndex][0], config.radii[lastIndex][1]};
@@ -65,6 +69,20 @@ public class ScaleToDimension {
 
         ExecutorService es = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         ArrayList<Callable< Void>> callables = new ArrayList< Callable<Void>>();
+
+        {
+            String lastBase = base + String.format("/out/%02d", lastIndex);
+            String link     = lastBase + String.format( "/forward-scaled-to-%02d", lastIndex );
+            String target   = "forward";
+            try {
+                Files.createSymbolicLink( Paths.get( link ), Paths.get( target ) );
+            } catch (FileAlreadyExistsException e) {
+                e.printStackTrace();
+                System.err.println( e.getMessage() );
+                System.err.println( link );
+                System.err.println( target );
+            }
+        }
 
         for ( int n = startIndex; n < lastIndex; ++n ) {
 
@@ -92,7 +110,7 @@ public class ScaleToDimension {
                 radius[i] = (radius1[i] - targetRadius[i]) / targetStep[i];
             }
 
-            ScaleAndShift transform = new ScaleAndShift(step, radius);
+            ScaleAndTranslation transform = new ScaleAndTranslation(step, radius);
 
 
 
@@ -108,7 +126,7 @@ public class ScaleToDimension {
         es.shutdown();
     }
 
-    public static void main(String[] args) throws NotEnoughDataPointsException, IllDefinedDataPointsException, FileNotFoundException, InterruptedException {
+    public static void main(String[] args) throws NotEnoughDataPointsException, IllDefinedDataPointsException, IOException, InterruptedException {
 
         String root = "/nobackup/saalfeld/hanslovskyp/CutOn4-15-2013_ImagedOn1-27-2014/aligned/substacks/1300-3449" +
                 "/4000x2500+5172+1416/downscale-z-by-4/corrected/z=[25,499]/z=[0,99]/downscale-xy-by-2/deformation";
@@ -117,10 +135,14 @@ public class ScaleToDimension {
 //      String run = "z=[60,159]/20160122_112824";
         String base = String.format("%s/%s/%s", root, id, run);
 
+        root = "/groups/saalfeld/saalfeldlab/Chlamy/z=[2049,3399]/scale=0.05";
+        run = "20160224_100216";
+        base = String.format( "%s/%s", root, run );
+
         ScaleOptions config = ScaleOptions.createFromFile(base + "/config.json");
 
         int startIndex = 0;
-        int lastIndex = 6;
+        int lastIndex = config.radii.length - 1;
         scale( base, config, startIndex, lastIndex );
     }
 
@@ -128,7 +150,7 @@ public class ScaleToDimension {
             final int start,
             final int stop,
             final String pattern,
-            final ScaleAndShift transform,
+            final ScaleAndTranslation transform,
             final Interval targetInterval,
             final String targetPattern,
             final ArrayList<Callable<Void>> callables )

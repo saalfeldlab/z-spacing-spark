@@ -33,6 +33,7 @@ public class CorrelationBlocks implements Serializable
         this.stride = stride;
     }
 
+    @Deprecated
     public Tuple2< Double, Double > translateCoordinateIntoThisBlockCoordinates(
             CorrelationBlocks other,
             Tuple2< Integer, Integer > localCoordinate
@@ -173,6 +174,34 @@ public class CorrelationBlocks implements Serializable
         {
             return localCoordinates.toString() + worldCoordinates.toString();
         }
+
+    }
+
+    public static void main(String[] args) {
+
+        int[] s1 = new int[]{234, 238};
+        int[] r1 = new int[]{234, 238};
+
+        int[] s2 = new int[]{117, 119};
+        int[] r2 = new int[]{50, 60};
+
+        int[] bb = new int[]{468, 477};
+
+        CorrelationBlocks cbs1 = new CorrelationBlocks(r1, s1);
+        CorrelationBlocks cbs2 = new CorrelationBlocks(r2, s2);
+
+        ArrayList<Coordinate> cs1 = cbs1.generateFromBoundingBox(bb);
+        ArrayList<Coordinate> cs2 = cbs2.generateFromBoundingBox(bb);
+
+        for ( Coordinate c1 : cs1 )
+            System.out.println( c1 );
+
+        for ( Coordinate c2 : cs2 ) {
+            System.out.println(c2);
+            System.out.println( cbs1.translateCoordinateIntoThisBlockCoordinates( c2 ) );
+        }
+
+//        System.out.println( cbs2.translateCoordinateIntoThisBlockCoordinates( cs1.get( 0 ) ) );
 
     }
 }

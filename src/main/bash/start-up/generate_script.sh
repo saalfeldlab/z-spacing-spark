@@ -20,6 +20,11 @@ MASK=${MASK:-$DEFAULT_MASK}
 WIDTH=$(identify -ping -format '%W' `printf "$SOURCE" $START`)
 HEIGHT=$(identify -ping -format '%H' `printf "$SOURCE" $START`)
 
+if [ -n "$SCALE" ]; then
+    ((WIDTH/=$SCALE))
+    ((HEIGHT/=$SCALE))
+fi
+
 STAGE=0
 
 while [ $STAGE -lt $STAGES ]; do

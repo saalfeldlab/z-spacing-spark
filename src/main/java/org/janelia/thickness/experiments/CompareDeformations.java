@@ -151,20 +151,26 @@ public class CompareDeformations {
 
         ScaleOptions config = ScaleOptions.createFromFile(configPath);
         int off = 0;
-        final int windowRange = 11;//( stop - start );
+        final int windowRange = 99;//( stop - start );
 
         final String patternRef = String.format("%s/%s", root, id) + "/backward-scaled-to-07/%04d.tif";
         final String patternGradientRef = String.format("%s/%s", root, id) + "/backward-gradient-scaled-to-07/%04d.tif";
 
 
-
-
-
-        compareGradients(
-                patternGradientRef,
+        comparePositions(
+                patternRef,
                 base,
-                config
+                config,
+                off,
+                windowRange
         );
+
+
+//        compareGradients(
+//                patternGradientRef,
+//                base,
+//                config
+//        );
 
 
     }
@@ -172,15 +178,15 @@ public class CompareDeformations {
     public static void compare(
             int start,
             int stop,
-            String pattern1,
-            String pattern2,
+            String gtPattern,
+            String comparePattern,
             String targetPattern,
             String diffPattern,
             int windowRange )
             throws NotEnoughDataPointsException, IllDefinedDataPointsException {
-        ArrayList<PointMatch>[] matchess = new ArrayList[ stop - start ];
-        for ( int i = 0; i < matchess.length; ++i )
-            matchess[i] = new ArrayList<>();
+//        ArrayList<PointMatch>[] matchess = new ArrayList[ stop - start ];
+//        for ( int i = 0; i < matchess.length; ++i )
+//            matchess[i] = new ArrayList<>();
 
         ArrayList<PointMatch> matches = new ArrayList<PointMatch>();
 
@@ -198,27 +204,27 @@ public class CompareDeformations {
 
             System.out.println( "Collecting matches at z=" + z );
 
-            ImagePlus imp1 = new ImagePlus(String.format(pattern1, z));
-            ImagePlus imp2 = new ImagePlus(String.format(pattern2, z));
+            ImagePlus gtImp = new ImagePlus(String.format(gtPattern, z));
+            ImagePlus compareImp = new ImagePlus(String.format(comparePattern, z));
 
-            ArrayImg<FloatType, FloatArray> img1 =
-                    ArrayImgs.floats((float[]) imp1.getProcessor().convertToFloatProcessor().getPixels(), imp1.getWidth(), imp1.getHeight());
-            ArrayImg<FloatType, FloatArray> img2 =
-                    ArrayImgs.floats((float[]) imp2.getProcessor().convertToFloatProcessor().getPixels(), imp2.getWidth(), imp2.getHeight());
+            ArrayImg<FloatType, FloatArray> gtImg =
+                    ArrayImgs.floats((float[]) gtImp.getProcessor().convertToFloatProcessor().getPixels(), gtImp.getWidth(), gtImp.getHeight());
+            ArrayImg<FloatType, FloatArray> compareImg =
+                    ArrayImgs.floats((float[]) compareImp.getProcessor().convertToFloatProcessor().getPixels(), compareImp.getWidth(), compareImp.getHeight());
 
-            for(Cursor<FloatType> c2 = img2.cursor(), c1 = img1.cursor(); c1.hasNext(); )
+            for(Cursor<FloatType> compareC = compareImg.cursor(), gtC = gtImg.cursor(); gtC.hasNext(); )
             {
-                double pos1 = c1.next().getRealDouble();
-                double pos2 = c2.next().getRealDouble();
-                if ( Double.isNaN(pos2) || pos2 == 0.0 || c2.getDoublePosition( 1 ) < 10.0 )
+                double gtPos = gtC.next().getRealDouble();
+                double comparePos = compareC.next().getRealDouble();
+                if ( Double.isNaN(comparePos) || comparePos == 0.0 || compareC.getDoublePosition( 1 ) < 10.0 )
                     continue;
                 PointMatch match =
                         new PointMatch(
-                                new Point(new double[]{pos2} ),
-                                new Point(new double[]{pos1} )
+                                new Point(new double[]{comparePos} ),
+                                new Point(new double[]{gtPos} )
                                 );
-                for ( int lower = Math.max(start, z - windowRange ); lower < Math.min( stop, z + windowRange + 1 ); ++lower )
-                    matchess[ lower ].add( match );
+//                for ( int lower = Math.max(start, z - windowRange ); lower < Math.min( stop, z + windowRange + 1 ); ++lower )
+//                    matchess[ lower - start ].add( match );
                 matches.add( match );
 //                matchMap.get( Utility.tuple2( c1.getIntPosition( 0 ), c1.getIntPosition( 1 ) ) ).add( match );
             }
@@ -238,38 +244,38 @@ public class CompareDeformations {
 
         AffineModel1D m = new AffineModel1D();
         m.fit( matches );
-        AffineModel1D[] ms = new AffineModel1D[stop - start];
-        for ( int i = 0; i < ms.length; ++i )
-        {
-            ms[i] = new AffineModel1D();
-            ms[i].fit( matchess[i] );
-        }
+//        AffineModel1D[] ms = new AffineModel1D[stop - start];
+//        for ( int i = 0; i < ms.length; ++i )
+//        {
+//            ms[i] = new AffineModel1D();
+//            ms[i].fit( matchess[i] );
+//        }
 
         for( int z = start; z < stop; ++z )
         {
 
             System.out.println( "Transforming section z=" + z );
 
-            ImagePlus imp1 = new ImagePlus(String.format(pattern1, z));
-            ImagePlus imp2 = new ImagePlus(String.format(pattern2, z));
+            ImagePlus gtImp = new ImagePlus(String.format(gtPattern, z));
+            ImagePlus compareImp = new ImagePlus(String.format(comparePattern, z));
 
-            ArrayImg<FloatType, FloatArray> img1 =
-                    ArrayImgs.floats((float[]) imp1.getProcessor().convertToFloatProcessor().getPixels(), imp1.getWidth(), imp1.getHeight());
-            ArrayImg<FloatType, FloatArray> img2 =
-                    ArrayImgs.floats((float[]) imp2.getProcessor().convertToFloatProcessor().getPixels(), imp2.getWidth(), imp2.getHeight());
+            ArrayImg<FloatType, FloatArray> gtImg =
+                    ArrayImgs.floats((float[]) gtImp.getProcessor().convertToFloatProcessor().getPixels(), gtImp.getWidth(), gtImp.getHeight());
+            ArrayImg<FloatType, FloatArray> compareImg =
+                    ArrayImgs.floats((float[]) compareImp.getProcessor().convertToFloatProcessor().getPixels(), compareImp.getWidth(), compareImp.getHeight());
 
-            FloatProcessor targetProcessor = new FloatProcessor(imp2.getWidth(), imp2.getHeight());
-            ArrayImg<FloatType, FloatArray> target = ArrayImgs.floats( (float[]) targetProcessor.getPixels(), imp2.getWidth(), imp2.getHeight() );
+            FloatProcessor targetProcessor = new FloatProcessor(compareImp.getWidth(), compareImp.getHeight());
+            ArrayImg<FloatType, FloatArray> target = ArrayImgs.floats( (float[]) targetProcessor.getPixels(), compareImp.getWidth(), compareImp.getHeight() );
 
-            FloatProcessor diffProcessor = new FloatProcessor(imp2.getWidth(), imp2.getHeight());
-            ArrayImg<FloatType, FloatArray> diff = ArrayImgs.floats( (float[]) diffProcessor.getPixels(), imp2.getWidth(), imp2.getHeight() );
+            FloatProcessor diffProcessor = new FloatProcessor(compareImp.getWidth(), compareImp.getHeight());
+            ArrayImg<FloatType, FloatArray> diff = ArrayImgs.floats( (float[]) diffProcessor.getPixels(), compareImp.getWidth(), compareImp.getHeight() );
 
             double[] dummy = new double[1];
 
-            for(Cursor<FloatType> c2 = img2.cursor(), c1 = img1.cursor(), t = target.cursor(), d = diff.cursor();
-                c2.hasNext(); )
+            for(Cursor<FloatType> compareC = compareImg.cursor(), gtC = gtImg.cursor(), t = target.cursor(), d = diff.cursor();
+                compareC.hasNext(); )
             {
-                double dub = c2.next().getRealDouble();
+                double dub = compareC.next().getRealDouble();
                 t.fwd();
                 d.fwd();
                 if ( Double.isNaN( dub ) || dub == 0.0 )
@@ -279,10 +285,11 @@ public class CompareDeformations {
                 }
                 else {
                     dummy[0] = dub;
-                    double applied = ms[z-start].apply(dummy)[0];
+                    double applied = m.apply( dummy )[0];
+//                    double applied = ms[z-start].apply(dummy)[0];
 //                double applied = modelMap.get( Utility.tuple2( c2.getIntPosition( 0 ), c2.getIntPosition( 1 ) ) ).apply( dummy )[0];
                     t.get().setReal(applied);
-                    d.get().setReal(applied - c1.next().getRealDouble());
+                    d.get().setReal(applied - gtC.next().getRealDouble());
                 }
             }
 
