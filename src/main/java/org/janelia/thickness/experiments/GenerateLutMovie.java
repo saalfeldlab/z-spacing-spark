@@ -18,8 +18,8 @@ import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.janelia.thickness.ScaleOptions;
 import org.janelia.thickness.inference.Options;
-import org.janelia.utility.io.IO;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
 
@@ -110,7 +110,7 @@ public class GenerateLutMovie {
             for( long z = 0; z < dim[2]; ++z )
             {
                 ImagePlus targetPlus = ImageJFunctions.wrapFloat(Views.hyperSlice(target, 2, z), "");
-                IO.createDirectoryForFile( String.format( timelinesScaledPattern, s, maximumIndex, sliceAxis, sliceIndex, z ) );
+                new File( String.format( timelinesScaledPattern, s, maximumIndex, sliceAxis, sliceIndex, z ) ).getParentFile().mkdirs();
                 new FileSaver( targetPlus ).saveAsTiff( String.format( timelinesScaledPattern, s, maximumIndex, sliceAxis, sliceIndex, z ) );
             }
 

@@ -20,9 +20,9 @@ import net.imglib2.view.Views;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.ScaleOptions;
 import org.janelia.thickness.utility.FPTuple;
-import org.janelia.utility.io.IO;
 import scala.Tuple2;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.FileAlreadyExistsException;
@@ -179,7 +179,7 @@ public class ScaleToDimension {
                             Views.interpolate(Views.extendBorder(img), new NLinearInterpolatorFactory<FloatType>());
                     IntervalView<FloatType> transformed = Views.interval(RealViews.transform(interpolatedAndExtended, transform), targetInterval);
 
-                    IO.createDirectoryForFile( String.format( targetPattern, z ) );
+                    new File( String.format( targetPattern, z ) ).getParentFile().mkdirs();
                     new FileSaver(ImageJFunctions.wrapFloat( transformed, "" ) ).saveAsTiff( String.format( targetPattern, z ) );
                     return null;
                 }

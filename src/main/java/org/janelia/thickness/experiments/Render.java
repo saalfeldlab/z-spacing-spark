@@ -32,9 +32,9 @@ import org.janelia.thickness.ScaleOptions;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransform;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.io.IO;
 import scala.Tuple2;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
@@ -219,8 +219,8 @@ public class Render {
                 IntervalView<FloatType> resultHS = Views.hyperSlice(resultImg, 2, z);
                 String lutPath = String.format(backwardTargetPath, z);
                 String resultPath = String.format(backwardRenderPath, z);
-                IO.createDirectoryForFile( lutPath );
-                IO.createDirectoryForFile( resultPath );
+                new File( lutPath ).getParentFile().mkdirs();
+                new File( resultPath ).getParentFile().mkdirs();
                 new FileSaver( ImageJFunctions.wrapFloat( lutHS, "" ) ).saveAsTiff( lutPath );
                 new FileSaver( ImageJFunctions.wrapFloat( resultHS, "" ) ).saveAsTiff( resultPath );
             }

@@ -12,9 +12,9 @@ import net.imglib2.type.numeric.real.FloatType;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.ScaleOptions;
 import org.janelia.thickness.utility.FPTuple;
-import org.janelia.utility.io.IO;
 import scala.Tuple2;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -294,11 +294,11 @@ public class CompareDeformations {
             }
 
             String path = String.format(targetPattern, z);
-            IO.createDirectoryForFile(path);
+            new File(path).getParentFile().mkdirs();
             new FileSaver( new ImagePlus("",targetProcessor) ).saveAsTiff( path );
 
             String diffPath = String.format(diffPattern, z);
-            IO.createDirectoryForFile(diffPath);
+            new File(diffPath).getParentFile().mkdirs();
             new FileSaver( new ImagePlus("",diffProcessor) ).saveAsTiff( diffPath );
 
 
@@ -355,7 +355,7 @@ public class CompareDeformations {
             }
 
             String diffPath = String.format(diffPattern, z);
-            IO.createDirectoryForFile(diffPath);
+            new File(diffPath).getParentFile().mkdirs();
             new FileSaver( new ImagePlus("",diffProcessor) ).saveAsTiff( diffPath );
 
 

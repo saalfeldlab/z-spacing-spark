@@ -10,9 +10,9 @@ import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import org.janelia.thickness.ScaleOptions;
-import org.janelia.utility.io.IO;
 import org.scijava.jython.shaded.com.kenai.jaffl.struct.Struct;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
@@ -66,7 +66,7 @@ public class CreateGradients {
         String collageDir = String.format( "%s/collage", base );
         String collagePath = String.format( "%s/%s", collageDir, "collage.tif" );
         String collageRGBPath = String.format( "%s/%s", collageDir, "collage-rgb.png" );
-        IO.createDirectoryForFile( collagePath );
+        new File( collagePath ).getParentFile().mkdirs();
         for ( int i = withBaseline ? -1 : 0; i < nImages; ++i )
         {
             System.out.println( i + " " + config.radii.length );
@@ -104,7 +104,7 @@ public class CreateGradients {
             for ( int z = start; z < stop; ++z )
             {
                 String outputPath = String.format( i == config.radii.length ? gtOut : currentBase + componentOut, z );
-                IO.createDirectoryForFile( outputPath );
+                new File( outputPath ).getParentFile().mkdirs();
                 FloatProcessor fp = (FloatProcessor)result.getStack().getProcessor( z + 1 );
                 fp.setMinAndMax( contrastMin, contrastMax );
                 new FileSaver( new ImagePlus( "", fp ) ).saveAsTiff( outputPath );

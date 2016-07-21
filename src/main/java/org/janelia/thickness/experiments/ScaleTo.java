@@ -13,8 +13,8 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.janelia.thickness.ScaleOptions;
-import org.janelia.utility.io.IO;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
@@ -65,7 +65,7 @@ public class ScaleTo {
                     Views.interval(Views.raster(RealViews.transform(extendedAndInterpolated, tf)), referenceImage);
             ImagePlus result = ImageJFunctions.wrap(transformed, "result");
             String targetPath = String.format( outputPattern, start );
-            IO.createDirectoryForFile( targetPath );
+            new File( targetPath ).getParentFile().mkdirs();
             new FileSaver( result ).saveAsTiff( targetPath );
         }
     }
@@ -113,7 +113,7 @@ public class ScaleTo {
                     Views.interval(Views.raster(RealViews.transform(extendedAndInterpolated, tf)), referenceImage);
             ImagePlus result = ImageJFunctions.wrap(transformed, "result");
             String targetPath = String.format( outputPattern, start );
-            IO.createDirectoryForFile( targetPath );
+            new File( targetPath ).getParentFile().mkdirs();
             new FileSaver( result ).saveAsTiff( targetPath );
         }
     }

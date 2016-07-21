@@ -11,12 +11,11 @@ import mpicbg.models.NotEnoughDataPointsException;
 import net.imglib2.FinalInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.util.ConstantUtils;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.RandomAccessibleOnRealRandomAccessible;
 import net.imglib2.view.Views;
 import org.janelia.thickness.ScaleOptions;
-import org.janelia.utility.ConstantRealRandomAccesssible;
-import org.janelia.utility.io.IO;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -212,13 +211,13 @@ public class Evaluation {
         int width       = dummy.getWidth();
         int height      = dummy.getHeight();
 
-        IO.createDirectoryForFile( String.format( unscaledPattern, experiment.config.start ) );
-        IO.createDirectoryForFile( String.format( scaledPattern, experiment.config.start ) );
+        new File( String.format( unscaledPattern, experiment.config.start ) ).getParentFile().mkdirs();
+        new File( String.format( scaledPattern, experiment.config.start ) ).getParentFile().mkdirs();
 
         for ( int z = experiment.config.start; z < experiment.config.stop; ++z )
         {
             RandomAccessibleOnRealRandomAccessible<FloatType> data =
-                    Views.raster( new ConstantRealRandomAccesssible<FloatType>(2, new FloatType(z)) );
+                    Views.raster( ConstantUtils.constantRealRandomAccessible( new FloatType(z), 2 ) );
             IntervalView<FloatType> unscaled = Views.interval(data, new FinalInterval(1, 1));
             IntervalView<FloatType> scaled   = Views.interval(data, new FinalInterval(width, height));
 

@@ -19,7 +19,11 @@ import java.util.HashMap;
  */
 public class Chunk implements Serializable {
 
-    private final int stepSize;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -2772585991397579231L;
+	private final int stepSize;
     private final int overlap;
     private final int length;
     private final int range;
@@ -53,7 +57,12 @@ public class Chunk implements Serializable {
             PairFlatMapFunction< Tuple2<K, Tuple2< FPTuple, double[] > >, K, Tuple2< Integer, Tuple2< FPTuple, double[] > > >
     {
 
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 8680726954953293122L;
+
+		@Override
         public Iterable<Tuple2<K, Tuple2<Integer, Tuple2< FPTuple, double[] > >>>
         call(Tuple2<K, Tuple2< FPTuple, double[] > > t) throws Exception {
             final FloatProcessor fp = t._2()._1().rebuild();
@@ -94,7 +103,12 @@ public class Chunk implements Serializable {
     public class AggregateAfterInferenceSeqFunc implements
             Function2<HashMap< Integer, double[] >, Tuple2< Integer, double[] >, HashMap< Integer, double[] > >
     {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 2464715442114363017L;
+
+		@Override
         public HashMap<Integer, double[]> call(HashMap<Integer, double[]> m, Tuple2<Integer, double[]> t) throws Exception {
             m.put( t._1(), t._2() );
             return m;
@@ -105,7 +119,12 @@ public class Chunk implements Serializable {
             Function2< HashMap< Integer, double[] >, HashMap< Integer, double[] >, HashMap< Integer, double[] > >
     {
 
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 5515881176929911485L;
+
+		@Override
         public HashMap<Integer, double[]> call(HashMap<Integer, double[]> m1, HashMap<Integer, double[]> m2) throws Exception {
             m1.putAll( m2 );
             return m1;
@@ -115,7 +134,12 @@ public class Chunk implements Serializable {
     public class MergeTransforms< K > implements
             PairFunction< Tuple2< K, HashMap< Integer, double[] > >, K, double[]> {
 
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -2354364405849240616L;
+
+		@Override
         public Tuple2<K, double[]> call(Tuple2<K, HashMap<Integer, double[]>> t) throws Exception {
             final double [] transform = new double[ length ];
             final HashMap<Integer, double[]> map = t._2();
