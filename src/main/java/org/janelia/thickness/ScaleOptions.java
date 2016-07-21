@@ -28,6 +28,10 @@ public class ScaleOptions {
     public final String target;
     public final int start;
     public final int stop;
+    public final int joinStepSize;
+    public final boolean[] logMatrices;
+    public final int[] chunkSizes;
+    public final int[] overlaps;
 
     public ScaleOptions(
             int[][] steps,
@@ -40,7 +44,11 @@ public class ScaleOptions {
             String mask,
             String target,
             int start,
-            int stop) {
+            int stop,
+            int joinStepSize,
+            boolean[] logMatrices,
+            final int[] chunkSizes,
+            final int[] overlaps ) {
         super();
         this.steps = steps;
         this.radii = radii;
@@ -53,6 +61,10 @@ public class ScaleOptions {
         this.target = target;
         this.start = start;
         this.stop = stop;
+        this.joinStepSize = joinStepSize;
+        this.logMatrices = logMatrices;
+        this.chunkSizes = chunkSizes;
+        this.overlaps = overlaps;
     }
 
     public String toString()
@@ -92,6 +104,16 @@ public class ScaleOptions {
         for( Entry<String, JsonElement> entry : defaultOptionsFromUser.entrySet() )
             defaultOptionsJson.add( entry.getKey(), entry.getValue() );
 
+
+
+        int scale = json.get( "scale" ) == null ? 0 : json.get( "scale" ).getAsInt();
+        String source = json.get( "source" ).getAsString();
+        String mask   = json.get( "mask" ).getAsString();
+        String target = json.get( "target" ).getAsString();
+
+        int start = json.get( "start" ).getAsInt();
+        int stop  = json.get( "stop"  ).getAsInt();
+
         JsonArray optionsRadiiAndSteps = json.get( "options" ).getAsJsonArray();
 
         int nIterations = optionsRadiiAndSteps.size();
@@ -100,6 +122,9 @@ public class ScaleOptions {
         int[][] correlationBlockRadii = new int[ nIterations ][];
         int[][] maxOffsets = new int[ nIterations ][];
         Options[] opts = new Options[ nIterations ];
+
+        int[] chunkSizes = new int[ nIterations ];
+        int[] overlaps = new int[ nIterations ];
 
         for ( int i = 0; i < nIterations; ++i )
         {
@@ -126,17 +151,48 @@ public class ScaleOptions {
 
             opts[ i ] = gson.fromJson( defaultOptionsJson, Options.class );
 
+            chunkSizes[ i ] = tuple.has( "chunkSize" ) ?
+                    Math.min( tuple.get( "chunkSize" ).getAsInt(), stop - start ) : stop - start;
+            overlaps[ i ] = tuple.has( "overlap" ) ?
+                    Math.min( tuple.get( "overlap" ).getAsInt(), 2 * opts[ i ].comparisonRange ) : 2 * opts[ i ].comparisonRange;
+
         }
 
-        int scale = json.get( "scale" ) == null ? 0 : json.get( "scale" ).getAsInt();
-        String source = json.get( "source" ).getAsString();
-        String mask   = json.get( "mask" ).getAsString();
-        String target = json.get( "target" ).getAsString();
+        int joinStepSize = Math.max( json.has( "joinStepSize" ) ? json.get( "joinStepSize" ).getAsInt() : 0, 2*opts[0].comparisonRange );
 
-        int start = json.get( "start" ).getAsInt();
-        int stop  = json.get( "stop"  ).getAsInt();
+        final boolean[] logMatrices = new boolean[ steps.length ];
+        if ( json.has( "logMatrices" ) )
+        {
+            JsonElement logMatricesJson = json.get("logMatrices");
+            if ( logMatricesJson.isJsonArray() )
+            {
+                for ( JsonElement val : logMatricesJson.getAsJsonArray() ) {
+                    int i = val.getAsInt();
+                    if ( i >= 0 && i < logMatrices.length )
+                        logMatrices[i] = true;
+                }
+            }
+            else if ( logMatricesJson.isJsonObject() )
+            {
+                for ( Entry<String, JsonElement> keyVal : logMatricesJson.getAsJsonObject().entrySet() )
+                {
+                    int key = Integer.parseInt(keyVal.getKey());
+                    if ( key >= 0 && key < logMatrices.length )
+                        logMatrices[key] = keyVal.getValue().getAsBoolean();
+                }
+            }
+            else if ( logMatricesJson.getAsJsonPrimitive().isBoolean() )
+            {
+                Arrays.fill( logMatrices, logMatricesJson.getAsBoolean() );
+            }
+        }
 
-        return new ScaleOptions( steps, radii, correlationBlockRadii, maxOffsets, opts, scale, source, mask, target, start, stop );
+
+        return new ScaleOptions(
+                steps, radii, correlationBlockRadii,
+                maxOffsets, opts, scale, source, mask,
+                target, start, stop, joinStepSize, logMatrices,
+                chunkSizes, overlaps );
 //		System.out.println( defaultOptionsJson.toString() );
     }
 
