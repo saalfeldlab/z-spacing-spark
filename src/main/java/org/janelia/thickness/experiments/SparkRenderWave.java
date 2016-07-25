@@ -10,7 +10,6 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
@@ -68,7 +67,7 @@ public class SparkRenderWave {
         final double[] stepsDouble = new double[]{ step, step };
 
         JavaRDD<Integer> indices = sc.parallelize(Utility.arange(size));
-        JavaPairRDD<Integer, FPTuple> sections = indices
+        JavaPairRDD<Integer, FloatProcessor> sections = indices
                 .mapToPair(new PairFunction<Integer, Integer, Integer>() {
 
                     public Tuple2<Integer, Integer> call(Integer arg0) throws Exception {
@@ -86,7 +85,7 @@ public class SparkRenderWave {
                 .cache();
         System.out.println( "sections: " + sections.count() );
 
-        JavaPairRDD<Integer, FPTuple> transforms = indices
+        JavaPairRDD<Integer, FloatProcessor> transforms = indices
                 .mapToPair(new PairFunction<Integer, Integer, Integer>() {
 
                     public Tuple2<Integer, Integer> call(Integer arg0) throws Exception {
@@ -100,19 +99,19 @@ public class SparkRenderWave {
                         return arg0._1();
                     }
                 })
-                .mapToPair(new PairFunction<Integer, Integer, FPTuple>() {
+                .mapToPair(new PairFunction<Integer, Integer, FloatProcessor>() {
                     @Override
-                    public Tuple2<Integer, FPTuple> call(Integer integer) throws Exception {
+                    public Tuple2<Integer, FloatProcessor> call(Integer integer) throws Exception {
                         ImagePlus imp = new ImagePlus(String.format(transformFormat, integer.intValue()));
                         FloatProcessor fp = imp.getProcessor().convertToFloatProcessor();
-                        return Utility.tuple2(integer, new FPTuple(fp));
+                        return Utility.tuple2(integer, fp);
                     }
                 })
                 .cache();
 
         System.out.println( "transforms: " + transforms.count() );
 
-        JavaPairRDD<Integer, FPTuple> transformed = SparkRender.render(sc, sections, transforms, stepsDouble, radiiDouble, dim, 1.0 /* fix this */ ).cache();
+        JavaPairRDD<Integer, FloatProcessor> transformed = SparkRender.render(sc, sections, transforms, stepsDouble, radiiDouble, dim, 1.0 /* fix this */ ).cache();
         System.out.println( "transformed: " + transformed.count() );
 
 

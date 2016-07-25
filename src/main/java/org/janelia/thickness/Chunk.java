@@ -6,7 +6,6 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
@@ -15,7 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * Created by hanslovskyp on 6/27/16.
+ * @author hanslovskyp
  */
 public class Chunk implements Serializable {
 
@@ -35,11 +34,11 @@ public class Chunk implements Serializable {
         this.range = range;
     }
 
-    public < K > JavaPairRDD< K, Tuple2< Integer, Tuple2< FPTuple, double[] > > > getChunks(
-            JavaPairRDD< K, Tuple2< FPTuple, double[] > > rdd
+    public < K > JavaPairRDD< K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > > getChunks(
+            JavaPairRDD< K, Tuple2< FloatProcessor, double[] > > rdd
     )
     {
-        return rdd.flatMapToPair( new CreateChunks<>() );
+        return rdd.flatMapToPair( new CreateChunks<K>() );
     }
 
     public < K > JavaPairRDD< K, double[] > mergeTransforms(
@@ -47,14 +46,14 @@ public class Chunk implements Serializable {
     )
     {
         JavaPairRDD< K, HashMap< Integer, double[] > > aggregatedAsMap =
-                transforms.aggregateByKey(new HashMap(), new AggregateAfterInferenceSeqFunc(), new AggregateAfterInferenceCombFunc());
+                transforms.aggregateByKey(new HashMap< Integer, double[] >(), new AggregateAfterInferenceSeqFunc(), new AggregateAfterInferenceCombFunc());
 
-        return aggregatedAsMap.mapToPair( new MergeTransforms<>() );
+        return aggregatedAsMap.mapToPair( new MergeTransforms<K>() );
     }
 
 
     public class CreateChunks< K > implements
-            PairFlatMapFunction< Tuple2<K, Tuple2< FPTuple, double[] > >, K, Tuple2< Integer, Tuple2< FPTuple, double[] > > >
+            PairFlatMapFunction< Tuple2<K, Tuple2< FloatProcessor, double[] > >, K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > >
     {
 
         /**
@@ -63,14 +62,14 @@ public class Chunk implements Serializable {
 		private static final long serialVersionUID = 8680726954953293122L;
 
 		@Override
-        public Iterable<Tuple2<K, Tuple2<Integer, Tuple2< FPTuple, double[] > >>>
-        call(Tuple2<K, Tuple2< FPTuple, double[] > > t) throws Exception {
-            final FloatProcessor fp = t._2()._1().rebuild();
+        public Iterable<Tuple2<K, Tuple2<Integer, Tuple2< FloatProcessor, double[] > >>>
+        call(Tuple2<K, Tuple2< FloatProcessor, double[] > > t) throws Exception {
+            final FloatProcessor fp = t._2()._1();
             double[] startingCoordinates = t._2()._2();
             final K xy = t._1();
             int w = fp.getWidth();
             int h = fp.getHeight();
-            ArrayList< Tuple2< K, Tuple2< Integer, Tuple2< FPTuple , double[] > > > > al = new ArrayList<>();
+            ArrayList< Tuple2< K, Tuple2< Integer, Tuple2< FloatProcessor , double[] > > > > al = new ArrayList<>();
             if ( stepSize < 1 || stepSize >= h / 2 )
             {
                 al.add( Utility.tuple2( xy, Utility.tuple2( 0, t._2() ) ) );
@@ -92,7 +91,7 @@ public class Chunk implements Serializable {
                             crop.setf( x, y, fp.getf( x, yWorld ) );
                         }
                     }
-                    al.add( Utility.tuple2( xy, Utility.tuple2( idx, Utility.tuple2( new FPTuple( crop ), sc ) ) ) );
+                    al.add( Utility.tuple2( xy, Utility.tuple2( idx, Utility.tuple2( crop, sc ) ) ) );
                 }
             }
             return al;

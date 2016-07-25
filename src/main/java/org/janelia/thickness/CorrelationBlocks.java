@@ -11,7 +11,11 @@ import java.util.ArrayList;
  */
 public class CorrelationBlocks implements Serializable
 {
-    private final Tuple2< Integer, Integer > radius;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -8831385541854366385L;
+	private final Tuple2< Integer, Integer > radius;
     private final Tuple2< Integer, Integer > stride;
 
     public CorrelationBlocks( int[] radius, int[] stride )
@@ -124,7 +128,11 @@ public class CorrelationBlocks implements Serializable
     public class Coordinate implements Serializable
     {
 
-        private final Tuple2<Integer, Integer> localCoordinates;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -6001200020461134825L;
+		private final Tuple2<Integer, Integer> localCoordinates;
         private final Tuple2<Integer, Integer> worldCoordinates;
 
         public Coordinate( int localCoordinate1, int localCoordinate2, int worldCoordinate1, int worldCoordinate2 )

@@ -10,7 +10,6 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 import scala.Tuple6;
@@ -92,8 +91,8 @@ public class Correlations {
         sums._6().set( n );
     }
 
-    public static FPTuple calculate(
-            HashMap<Tuple2<Integer, Integer>, FPTuple[]> hm, /* x, y */
+    public static FloatProcessor calculate(
+            HashMap<Tuple2<Integer, Integer>, FloatProcessor[]> hm, /* x, y */
             Tuple2<Integer, Integer> min,
             Tuple2<Integer, Integer> max,
             int[] blockSize,
@@ -118,9 +117,9 @@ public class Correlations {
                 );
             }
         }
-        for( Map.Entry< Tuple2< Integer, Integer >, FPTuple[] > e : hm.entrySet() )
+        for( Map.Entry< Tuple2< Integer, Integer >, FloatProcessor[] > e : hm.entrySet() )
         {
-            FPTuple[] images = e.getValue();
+        	FloatProcessor[] images = e.getValue();
             Tuple2<Integer, Integer> positionInBlockCoordinates = e.getKey();
             Tuple2<Integer, Integer> positionsInWorldCoordinates = Utility.tuple2(
                     positionInBlockCoordinates._1() * blockSize[0],
@@ -136,10 +135,10 @@ public class Correlations {
             };
             for( int i = 0; i < nLayers; ++i )
             {
-                FloatProcessor fp1 = images[i].rebuild();
+                FloatProcessor fp1 = images[i];
                 for ( int k = i + 1; k - i <= range && k < nLayers; ++k )
                 {
-                    FloatProcessor fp2 = images[k].rebuild();
+                    FloatProcessor fp2 = images[k];
                     Tuple6<RealSum, RealSum, RealSum, RealSum, RealSum,LongType> currentSums = sums.get(Utility.tuple2(i, k));
                     calculate( fp1, fp2, minimumRelativeToBlock, maximumRelativeToBlock, currentSums );
                 }
@@ -169,18 +168,23 @@ public class Correlations {
             matrix.setf( x, y, correlation );
             matrix.setf( y, x, correlation );
         }
-        return FPTuple.create( matrix );
+        return matrix;
     }
 
-    public static class Calculate< K > implements PairFunction< Tuple2< K, Tuple2< FPTuple, FPTuple > >, K, Double >
+    public static class Calculate< K > implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > >, K, Double >
     {
 
-        @Override
-        public Tuple2<K, Double> call(Tuple2<K, Tuple2<FPTuple, FPTuple>> t) throws Exception {
-            Tuple2<FPTuple, FPTuple> fps = t._2();
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -2100509719455523081L;
+
+		@Override
+        public Tuple2<K, Double> call(Tuple2<K, Tuple2<FloatProcessor, FloatProcessor>> t) throws Exception {
+            Tuple2<FloatProcessor, FloatProcessor> fps = t._2();
             return Utility.tuple2(
                     t._1(),
-                    calculate( fps._1().rebuild(), fps._2().rebuild() )
+                    calculate( fps._1(), fps._2() )
             );
         }
     }
@@ -193,28 +197,27 @@ public class Correlations {
         ArrayList<Integer> indices = Utility.arange(start, stop);
         SparkConf conf = new SparkConf().setAppName("Correlations").setMaster("local[*]");
         JavaSparkContext sc = new JavaSparkContext(conf);
-        JavaPairRDD<Integer, FPTuple> files = sc
+        JavaPairRDD<Integer, FloatProcessor> files = sc
                 .parallelize(indices)
                 .mapToPair(new Utility.Format<Integer>(input))
                 .mapToPair(new Utility.LoadFile())
                 .mapToPair(new Utility.ReplaceValue( 0.0f, Float.NaN ) )
                 .cache();
 
-        List<Tuple2<Tuple2<Integer, Integer>, Double>> correlations = files
+        @SuppressWarnings("serial")
+		List<Tuple2<Tuple2<Integer, Integer>, Double>> correlations = files
                 .cartesian(files)
-                .filter(new Function<Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>>, Boolean>() {
+                .filter(new Function<Tuple2<Tuple2<Integer, FloatProcessor>, Tuple2<Integer, FloatProcessor>>, Boolean>() {
                     @Override
-                    public Boolean call(Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>> t) throws Exception {
-                        Tuple2<Integer, FPTuple> t1 = t._1();
-                        Tuple2<Integer, FPTuple> t2 = t._2();
+                    public Boolean call(Tuple2<Tuple2<Integer, FloatProcessor>, Tuple2<Integer, FloatProcessor>> t) throws Exception {
                         int diff = t._1()._1().intValue() - t._2()._1().intValue();
                         return diff > 0 && diff <= range;
                     }
                 })
-                .mapToPair(new PairFunction<Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>>, Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>>() {
+                .mapToPair(new PairFunction<Tuple2<Tuple2<Integer, FloatProcessor>, Tuple2<Integer, FloatProcessor>>, Tuple2<Integer, Integer>, Tuple2<FloatProcessor, FloatProcessor>>() {
                     @Override
-                    public Tuple2<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>>
-                    call(Tuple2<Tuple2<Integer, FPTuple>, Tuple2<Integer, FPTuple>> t) throws Exception {
+                    public Tuple2<Tuple2<Integer, Integer>, Tuple2<FloatProcessor, FloatProcessor>>
+                    call(Tuple2<Tuple2<Integer, FloatProcessor>, Tuple2<Integer, FloatProcessor>> t) throws Exception {
                         return Utility.tuple2(
                                 Utility.tuple2(t._1()._1(), t._2()._1()),
                                 Utility.tuple2(t._1()._2(), t._2()._2())
@@ -224,6 +227,8 @@ public class Correlations {
                 .mapToPair(new Calculate<Tuple2<Integer, Integer>>())
                 .collect()
                 ;
+        
+        sc.close();
 
         FloatProcessor matrix = new FloatProcessor(stop - start, stop - start);
         matrix.add( Double.NaN );

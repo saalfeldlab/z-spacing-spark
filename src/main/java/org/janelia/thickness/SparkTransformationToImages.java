@@ -9,24 +9,23 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 import scala.Tuple3;
 
 public class SparkTransformationToImages {
 
-    public static JavaPairRDD< Integer, FPTuple> toImages(
+    public static JavaPairRDD< Integer, FloatProcessor> toImages(
             final JavaPairRDD< Tuple2< Integer, Integer >, double[] > input,
             final int[] dim,
             final int[] radius,
             final int[] step )
     {
-        JavaPairRDD<Integer, FPTuple> output = input // (x, y) -> double[]
+        JavaPairRDD<Integer, FloatProcessor> output = input // (x, y) -> double[]
                 .flatMapToPair( new FromArrayToIndexValuePairs() ) // (x, y) -> (z, value)
                 .mapToPair(new FromXYKeyToZKey()) // z -> (x, y, value)
                 .aggregateByKey( // z -> FPTuple
-                        new FPTuple( new FloatProcessor( (int)dim[0], (int)dim[1] ) ),
+                        new FloatProcessor( (int)dim[0], (int)dim[1] ),
                         new WriteToFloatProcessor( radius, step ),
                         new MergeDisjointFloatProcessors() )
                 ;
@@ -67,7 +66,7 @@ public class SparkTransformationToImages {
     }
 
 
-    public static class WriteToFloatProcessor implements Function2< FPTuple, Tuple3<Integer, Integer, Double>, FPTuple >
+    public static class WriteToFloatProcessor implements Function2< FloatProcessor, Tuple3<Integer, Integer, Double>, FloatProcessor >
     {
         private static final long serialVersionUID = 426010164977854733L;
         private final int[] radius;
@@ -79,11 +78,11 @@ public class SparkTransformationToImages {
             this.step = step;
         }
 
-        public FPTuple call( FPTuple fp, Tuple3<Integer, Integer, Double> t )
+        public FloatProcessor call( FloatProcessor fp, Tuple3<Integer, Integer, Double> t )
                 throws Exception {
             int x = t._1();
             int y = t._2();
-            FloatProcessor proc = fp.rebuild();
+            FloatProcessor proc = fp;
             if( x >= 0 && x < proc.getWidth() && y >= 0 && y < proc.getHeight() ) // TODO pass correct dims, so no data is lost
                 proc.setf( t._1(), t._2(), t._3().floatValue() );
             return fp;
@@ -91,13 +90,13 @@ public class SparkTransformationToImages {
     }
 
 
-    public static class MergeDisjointFloatProcessors implements Function2< FPTuple, FPTuple, FPTuple >
+    public static class MergeDisjointFloatProcessors implements Function2< FloatProcessor, FloatProcessor, FloatProcessor >
     {
         private static final long serialVersionUID = 1608128472889969913L;
 
-        public FPTuple call( FPTuple fp1, FPTuple fp2 ) throws Exception {
-            float[] p1 = (float[])fp1.rebuild().getPixels();
-            float[] p2 = (float[])fp2.rebuild().getPixels();
+        public FloatProcessor call( FloatProcessor fp1, FloatProcessor fp2 ) throws Exception {
+            float[] p1 = (float[])fp1.getPixels();
+            float[] p2 = (float[])fp2.getPixels();
             for (int j = 0; j < p1.length; j++) {
                 p1[j] += p2[j];
             }

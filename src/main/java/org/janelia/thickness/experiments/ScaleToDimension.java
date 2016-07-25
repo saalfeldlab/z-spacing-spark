@@ -2,6 +2,7 @@ package org.janelia.thickness.experiments;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
+import ij.process.FloatProcessor;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.NotEnoughDataPointsException;
 import net.imglib2.FinalInterval;
@@ -19,7 +20,6 @@ import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.ScaleOptions;
-import org.janelia.thickness.utility.FPTuple;
 import scala.Tuple2;
 
 import java.io.File;
@@ -43,13 +43,13 @@ public class ScaleToDimension {
 //        public final double
     }
 
-    public static class TransformAndCompare implements PairFunction<Tuple2<Integer,FPTuple[]>,Integer, Stat>
+    public static class TransformAndCompare implements PairFunction<Tuple2<Integer,FloatProcessor[]>,Integer, Stat>
     {
 
 
 
         @Override
-        public Tuple2<Integer, Stat> call(Tuple2<Integer, FPTuple[]> integerTuple2) throws Exception {
+        public Tuple2<Integer, Stat> call(Tuple2<Integer, FloatProcessor[]> integerTuple2) throws Exception {
             return null;
         }
     }

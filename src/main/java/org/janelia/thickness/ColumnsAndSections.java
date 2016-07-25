@@ -98,7 +98,11 @@ public class ColumnsAndSections {
 
     public static class XYToZ implements PairFlatMapFunction<Tuple2<Tuple2<Integer, Integer>, double[]>, Integer, HashMap<Tuple2<Integer, Integer>, Double>> {
 
-        private final int size;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -8639870212459317088L;
+		private final int size;
 
         public XYToZ(int size) {
             this.size = size;
@@ -141,9 +145,15 @@ public class ColumnsAndSections {
 
     public static class Joiner< K, V, M extends Map< K, V >> implements Function2< M, M, M> {
 
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 5419988792646298247L;
+
+		@Override
         public M call(M m1, M m2) throws Exception {
-            M result = (M)m1.getClass().newInstance();
+            @SuppressWarnings("unchecked")
+			M result = (M)m1.getClass().newInstance();
             result.putAll( m1 );
             result.putAll(m2);
 //            String logString = StringUtils.join(m1) + StringUtils.join(m2) + StringUtils.join(result);
@@ -153,7 +163,11 @@ public class ColumnsAndSections {
     }
 
     public static class ConvertToImages implements PairFunction<Tuple2<Integer, HashMap<Tuple2<Integer, Integer>, Double>>, Integer, DPTuple> {
-        private final int[] dim;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -1435035403092923883L;
+		private final int[] dim;
 
         public ConvertToImages(int[] dim) {
             this.dim = dim;
@@ -203,7 +217,11 @@ public class ColumnsAndSections {
     }
 
     public static class ZToXY implements PairFlatMapFunction<Tuple2<Integer, DPTuple>, Tuple2<Integer, Integer>, HashMap<Integer, Double>> {
-        private final int[] dim;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -3093241807946238137L;
+		private final int[] dim;
 
         public ZToXY(int[] dim) {
             this.dim = dim;
@@ -244,7 +262,12 @@ public class ColumnsAndSections {
     }
 
     public static class ConvertToArray implements PairFunction<Tuple2<Tuple2<Integer, Integer>, HashMap<Integer, Double>>, Tuple2<Integer, Integer>, double[]> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -7360491626120581864L;
+
+		@Override
         public Tuple2<Tuple2<Integer, Integer>, double[]> call(Tuple2<Tuple2<Integer, Integer>, HashMap<Integer, Double>> t) throws Exception {
             HashMap<Integer, Double> hm = t._2();
             double[] data = new double[hm.size()];

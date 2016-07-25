@@ -43,14 +43,24 @@ public class LogSuccessAndFailure {
     }
 
     public static class OnlyFailures<K,V> implements Function<Tuple2<K, V>, Boolean> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -2565698804928608078L;
+
+		@Override
         public Boolean call(Tuple2<K, V> t) throws Exception {
             return t._2() == null;
         }
     }
 
     public static class ToBoolean<K, V> implements PairFunction<Tuple2<K, V>, K, Boolean> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -9094070244040299624L;
+
+		@Override
         public Tuple2<K, Boolean> call(Tuple2<K, V> t) throws Exception {
             return Utility.tuple2(t._1(), true);
         }
@@ -59,7 +69,12 @@ public class LogSuccessAndFailure {
     public static class DropValue<K, V> implements Function<Tuple2<K, V>, K>
     {
 
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 1046836443822643493L;
+
+		@Override
         public K call(Tuple2<K, V> t) throws Exception {
             return t._1();
         }

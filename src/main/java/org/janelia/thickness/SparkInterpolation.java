@@ -56,7 +56,11 @@ public class SparkInterpolation {
             Tuple2<Tuple2<Integer, Integer>, double[]>,
             Tuple2<Tuple2<Integer, Integer>, Double>> {
 
-        private final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -3062200592897561984L;
+		private final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates;
         private final int[] dim;
 
         public MatchCoordinates(
@@ -117,7 +121,12 @@ public class SparkInterpolation {
     public static class SwapKey implements PairFunction<
             Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double> >,
             Tuple2<Integer, Integer>, Tuple2<double[], Double>> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 5948366161924347320L;
+
+		@Override
         public Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>>
         call(Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>> t) throws Exception {
             Tuple2<Integer, Integer> newCoord = t._2()._1();
@@ -128,7 +137,12 @@ public class SparkInterpolation {
     public static class WeightedArrays implements PairFunction<
             Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>>,
             Tuple2<Integer, Integer>, Tuple2<double[], Double>> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -2321684262329844915L;
+
+		@Override
         public Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>> call(Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>> t) throws Exception {
             Tuple2<double[], Double> arrWithWeight = t._2();
             double[] arr = arrWithWeight._1().clone(); // TODO clone here? YES! otherwise garbage output
@@ -141,7 +155,12 @@ public class SparkInterpolation {
     }
 
     public static class ReduceArrays implements Function2<Tuple2<double[], Double>, Tuple2<double[], Double>, Tuple2<double[], Double>> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 302989376509175864L;
+
+		@Override
         public Tuple2<double[], Double> call(Tuple2<double[], Double> t1, Tuple2<double[], Double> t2) throws Exception {
             double[] arr1 = t1._1();
             double[] arr2 = t2._1();
@@ -153,7 +172,12 @@ public class SparkInterpolation {
     }
 
     public static class NormalizeBySumOfWeights implements PairFunction<Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>>, Tuple2<Integer, Integer>, double[]> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 2199139375758027071L;
+
+		@Override
         public Tuple2<Tuple2<Integer, Integer>, double[]> call(Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>> t) throws Exception {
             double[] arr = t._2()._1();
             double weight = t._2()._2();
@@ -304,7 +328,8 @@ public class SparkInterpolation {
         CorrelationBlocks cbs2 = new CorrelationBlocks(radii2, steps2);
 
         ArrayList<CorrelationBlocks.Coordinate> init = cbs1.generateFromBoundingBox(dim);
-        JavaPairRDD<Tuple2<Integer, Integer>, double[]> rdd = sc
+        @SuppressWarnings("serial")
+		JavaPairRDD<Tuple2<Integer, Integer>, double[]> rdd = sc
                 .parallelize(init)
                 .mapToPair(new PairFunction<CorrelationBlocks.Coordinate, Tuple2<Integer, Integer>, double[]>() {
                     @Override

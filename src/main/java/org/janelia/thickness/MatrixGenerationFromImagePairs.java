@@ -8,7 +8,6 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
@@ -24,12 +23,12 @@ public class MatrixGenerationFromImagePairs {
 
     private final JavaSparkContext sc;
     // assume only one of (i,j),(j,i) is present
-    private final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2<FPTuple, FPTuple > > sectionPairs;
+    private final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2<FloatProcessor, FloatProcessor > > sectionPairs;
     private final int[] dim;
     private final int size;
     private final int startIndex;
 
-    public MatrixGenerationFromImagePairs(JavaSparkContext sc, JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> sectionPairs, int[] dim, int size, int startIndex) {
+    public MatrixGenerationFromImagePairs(JavaSparkContext sc, JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FloatProcessor, FloatProcessor>> sectionPairs, int[] dim, int size, int startIndex) {
         this.sc = sc;
         this.sectionPairs = sectionPairs;
         this.dim = dim;
@@ -44,10 +43,10 @@ public class MatrixGenerationFromImagePairs {
     }
 
 
-    public JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> generateMatrices(int[] stride, int[] correlationBlockRadius, final int range) {
+    public JavaPairRDD<Tuple2<Integer, Integer>, FloatProcessor> generateMatrices(int[] stride, int[] correlationBlockRadius, final int range) {
 
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2< FPTuple, FPTuple >> pairsWithinRange =
-                sectionPairs.filter(new SelectInRange< Tuple2< FPTuple, FPTuple > >( range ) );
+        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2< FloatProcessor, FloatProcessor >> pairsWithinRange =
+                sectionPairs.filter(new SelectInRange< Tuple2< FloatProcessor, FloatProcessor > >( range ) );
         pairsWithinRange.cache().count();
         System.out.println( "Filtered pairs." );
 
@@ -60,10 +59,10 @@ public class MatrixGenerationFromImagePairs {
         pairwiseCorrelations.cache().count();
         System.out.println( "Created subsections." );
 
-        JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices = pairwiseCorrelations
+        JavaPairRDD<Tuple2<Integer, Integer>, FloatProcessor> matrices = pairwiseCorrelations
                 .flatMapToPair(new ExchangeIndexOrder() )
                 .reduceByKey(new ReduceMaps())
-                .mapToPair(new MapToFPTuple(size, startIndex) );
+                .mapToPair(new MapToFloatProcessor(size, startIndex) );
         matrices.cache().count();
         System.out.println( "Calculated matrices." );
 
@@ -72,7 +71,11 @@ public class MatrixGenerationFromImagePairs {
 
     public static class SelectInRange< V > implements Function<Tuple2<Tuple2<Integer, Integer>, V>, Boolean> {
 
-        private final int range;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 4484476583576256519L;
+		private final int range;
 
         public SelectInRange(int range) {
             this.range = range;
@@ -87,10 +90,14 @@ public class MatrixGenerationFromImagePairs {
     }
 
     public static class SubSectionCorrelations implements PairFunction<
-            Tuple2<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>>,
+            Tuple2<Tuple2<Integer, Integer>, Tuple2<FloatProcessor, FloatProcessor>>,
             Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> {
 
-        private final Broadcast<ArrayList<CorrelationBlocks.Coordinate>> coordinates;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 4914446108059613538L;
+		private final Broadcast<ArrayList<CorrelationBlocks.Coordinate>> coordinates;
         private final int[] dim;
 
         public SubSectionCorrelations(Broadcast<ArrayList<CorrelationBlocks.Coordinate>> coordinates, int[] dim) {
@@ -100,9 +107,9 @@ public class MatrixGenerationFromImagePairs {
 
         @Override
         public Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>
-        call(Tuple2<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> t) throws Exception {
-            FloatProcessor fp1 = t._2()._1().rebuild();
-            FloatProcessor fp2 = t._2()._2().rebuild();
+        call(Tuple2<Tuple2<Integer, Integer>, Tuple2<FloatProcessor, FloatProcessor>> t) throws Exception {
+            FloatProcessor fp1 = t._2()._1();
+            FloatProcessor fp2 = t._2()._2();
             int[] min = new int[]{0, 0};
             int[] currentStart = new int[2];
             int[] currentStop = new int[2];
@@ -181,20 +188,20 @@ public class MatrixGenerationFromImagePairs {
         }
     }
 
-    public static class MapToFPTuple implements PairFunction<
+    public static class MapToFloatProcessor implements PairFunction<
             Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>,
-            Tuple2<Integer, Integer>, FPTuple> {
+            Tuple2<Integer, Integer>, FloatProcessor> {
 
         private final int size;
         private final int startIndex;
 
-        public MapToFPTuple(int size, int startIndex) {
+        public MapToFloatProcessor(int size, int startIndex) {
             this.size = size;
             this.startIndex = startIndex;
         }
 
         @Override
-        public Tuple2<Tuple2<Integer, Integer>, FPTuple> call(Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> t) throws Exception {
+        public Tuple2<Tuple2<Integer, Integer>, FloatProcessor> call(Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> t) throws Exception {
             FloatProcessor result = new FloatProcessor(size, size);
             result.add(Double.NaN);
             for (int z = 0; z < size; ++z)
@@ -207,7 +214,7 @@ public class MatrixGenerationFromImagePairs {
                 result.setf(x, y, val);
                 result.setf(y, x, val);
             }
-            return Utility.tuple2(t._1(), new FPTuple(result));
+            return Utility.tuple2(t._1(), result);
         }
     }
 }

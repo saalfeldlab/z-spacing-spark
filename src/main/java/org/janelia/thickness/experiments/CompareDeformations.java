@@ -11,7 +11,6 @@ import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.type.numeric.real.FloatType;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.ScaleOptions;
-import org.janelia.thickness.utility.FPTuple;
 import scala.Tuple2;
 
 import java.io.File;
@@ -34,13 +33,13 @@ public class CompareDeformations {
 //        public final double
     }
 
-    public static class TransformAndCompare implements PairFunction<Tuple2<Integer,FPTuple[]>,Integer, Stat>
+    public static class TransformAndCompare implements PairFunction<Tuple2<Integer,FloatProcessor[]>,Integer, Stat>
     {
 
 
 
         @Override
-        public Tuple2<Integer, Stat> call(Tuple2<Integer, FPTuple[]> integerTuple2) throws Exception {
+        public Tuple2<Integer, Stat> call(Tuple2<Integer, FloatProcessor[]> integerTuple2) throws Exception {
             return null;
         }
     }

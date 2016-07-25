@@ -80,7 +80,12 @@ public class JoinFromList {
     public static class MoveToKey< K, V1, V2 > implements PairFunction< Tuple2< K, Tuple2< V1, V2 > >, Tuple2<K, V1 >, V2 >
     {
 
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 5621896946938206708L;
+
+		@Override
         public Tuple2<Tuple2<K, V1>, V2> call(Tuple2<K, Tuple2<V1, V2>> t) throws Exception {
             Tuple2<V1, V2> valuePair = t._2();
             return Utility.tuple2( Utility.tuple2( t._1(), valuePair._1() ), valuePair._2() );
@@ -140,7 +145,12 @@ public class JoinFromList {
         }
     }
 
-    public static class RearrangeSameKeysAndValues< K, V > extends Rearrange< K, K, V, V > {}
+    public static class RearrangeSameKeysAndValues< K, V > extends Rearrange< K, K, V, V > {
+
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 6750532985494792621L;}
 
     /**
      *

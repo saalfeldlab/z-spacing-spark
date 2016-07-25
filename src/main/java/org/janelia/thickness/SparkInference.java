@@ -8,11 +8,11 @@ import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.inference.fits.GlobalCorrelationFitAverage;
 import org.janelia.thickness.inference.visitor.LazyVisitor;
 import org.janelia.thickness.inference.visitor.Visitor;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.MatrixStripConversion;
 
 import ij.ImagePlus;
+import ij.process.FloatProcessor;
 import mpicbg.models.NotEnoughDataPointsException;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
@@ -35,20 +35,20 @@ public class SparkInference
 
 	public static JavaPairRDD< Tuple2< Integer, Integer >, double[] > inferCoordinates(
 			final JavaSparkContext sc,
-			final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices,
+			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices,
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > startingCoordinates,
 			final Chunk chunk,
 			final Options options,
 			final String pattern )
 	{
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, double[] > > matricesWithStartingCoordinates = matrices
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, double[] > > matricesWithStartingCoordinates = matrices
 				.join( startingCoordinates );
 
 		System.out.flush();
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, Tuple2< FPTuple, double[] > > > chunked =
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > > chunked =
 				chunk.getChunks( matricesWithStartingCoordinates );
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, double[] > > results = chunked
-				.mapToPair( new Inference<>( options ) );
+				.mapToPair( new Inference<Tuple2<Integer, Integer>>( options ) );
 
 		return chunk.mergeTransforms( results );
 	}
@@ -75,7 +75,7 @@ public class SparkInference
 	}
 
 	public static class Inference< K >
-			implements PairFunction< Tuple2< K, Tuple2< Integer, Tuple2< FPTuple, double[] > > >, K, Tuple2< Integer, double[] > >
+			implements PairFunction< Tuple2< K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > >, K, Tuple2< Integer, double[] > >
 	{
 		private static final long serialVersionUID = 8094812748656050753L;
 
@@ -87,11 +87,11 @@ public class SparkInference
 			this.options = options;
 		}
 
-		public Tuple2< K, Tuple2< Integer, double[] > > call( final Tuple2< K, Tuple2< Integer, Tuple2< FPTuple, double[] > > > it )
+		public Tuple2< K, Tuple2< Integer, double[] > > call( final Tuple2< K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > > it )
 				throws Exception
 		{
-			final Tuple2< Integer, Tuple2< FPTuple, double[] > > t = it._2();
-			final ImagePlus imp = new ImagePlus( "", t._2()._1().rebuild() );
+			final Tuple2< Integer, Tuple2< FloatProcessor, double[] > > t = it._2();
+			final ImagePlus imp = new ImagePlus( "", t._2()._1() );
 			final int w = imp.getWidth();
 			final int h = imp.getHeight();
 			RandomAccessibleInterval< FloatType > matrix = ImageJFunctions.wrapFloat( imp );
@@ -143,6 +143,7 @@ public class SparkInference
 		public < T extends RealType< T > > void act(
 				final int iteration,
 				final RandomAccessibleInterval< T > matrix,
+				final RandomAccessibleInterval< T > scaledMatrix,
 				final double[] lut,
 				final int[] permutation,
 				final int[] inversePermutation,

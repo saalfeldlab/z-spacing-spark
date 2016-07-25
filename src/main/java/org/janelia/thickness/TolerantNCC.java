@@ -11,7 +11,6 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.similarities.NCC;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
@@ -24,9 +23,9 @@ import java.util.HashSet;
  */
 public class TolerantNCC {
 
-    private final JavaPairRDD<Tuple2< Integer, Integer >, Tuple2<Tuple2<FPTuple, FPTuple >,Tuple2<FPTuple,FPTuple>>> overcompleteSections;
+    private final JavaPairRDD<Tuple2< Integer, Integer >, Tuple2<Tuple2<FloatProcessor, FloatProcessor >,Tuple2<FloatProcessor,FloatProcessor>>> overcompleteSections;
 
-    public TolerantNCC(JavaPairRDD<Tuple2< Integer, Integer >, Tuple2<Tuple2<FPTuple, FPTuple >,Tuple2<FPTuple,FPTuple>>> overcompleteSections) {
+    public TolerantNCC(JavaPairRDD<Tuple2< Integer, Integer >, Tuple2<Tuple2<FloatProcessor, FloatProcessor >,Tuple2<FloatProcessor,FloatProcessor>>> overcompleteSections) {
         this.overcompleteSections = overcompleteSections;
     }
 
@@ -44,7 +43,7 @@ public class TolerantNCC {
 //
 //    }
 
-    public JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> calculate(
+    public JavaPairRDD<Tuple2<Integer, Integer>, FloatProcessor> calculate(
             JavaSparkContext sc,
             final int[] blockRadius,
             final int[] stepSize,
@@ -55,13 +54,13 @@ public class TolerantNCC {
     )
     {
 
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<FPTuple, FPTuple>, Tuple2<FPTuple, FPTuple>>> sections = overcompleteSections
-                .filter(new MatrixGenerationFromImagePairs.SelectInRange<Tuple2<Tuple2<FPTuple, FPTuple>,Tuple2<FPTuple,FPTuple>>>(range))
+        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<FloatProcessor, FloatProcessor>, Tuple2<FloatProcessor, FloatProcessor>>> sections = overcompleteSections
+                .filter(new MatrixGenerationFromImagePairs.SelectInRange<Tuple2<Tuple2<FloatProcessor, FloatProcessor>,Tuple2<FloatProcessor, FloatProcessor>>>(range))
                 ;
 
         System.out.println( "sections: " + sections.count() );
 
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FPTuple, FPTuple>> maxProjections = sections
+        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<FloatProcessor, FloatProcessor>> maxProjections = sections
                 .mapToPair(new FPToSimilarities<Tuple2<Integer, Integer>>(
                         maxOffset,
                         correlationBlockRadius
@@ -112,9 +111,9 @@ public class TolerantNCC {
 
         averagesIndexedByXYTuples.count();
 
-        JavaPairRDD<Tuple2<Integer, Integer>, FPTuple> matrices = averagesIndexedByXYTuples
+        JavaPairRDD<Tuple2<Integer, Integer>, FloatProcessor> matrices = averagesIndexedByXYTuples
                 .reduceByKey(new Utility.ReduceMapsByUnion<Tuple2<Integer, Integer>, Double, HashMap<Tuple2<Integer, Integer>, Double>>())
-                .mapToPair(new MatrixGenerationFromImagePairs.MapToFPTuple(size, 0))
+                .mapToPair(new MatrixGenerationFromImagePairs.MapToFloatProcessor(size, 0))
                 .cache()
                 ;
 
@@ -126,9 +125,13 @@ public class TolerantNCC {
     }
 
     public static class FPToSimilarities<K>
-    implements PairFunction<Tuple2<K,Tuple2<Tuple2<FPTuple,FPTuple>,Tuple2<FPTuple,FPTuple>>>, K, Tuple2<FPTuple,FPTuple>> {
+    implements PairFunction<Tuple2<K,Tuple2<Tuple2<FloatProcessor,FloatProcessor>,Tuple2<FloatProcessor,FloatProcessor>>>, K, Tuple2<FloatProcessor,FloatProcessor>> {
 
-        private final int[] maxOffsets;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 572711725174439812L;
+		private final int[] maxOffsets;
         private final int[] blockRadius;
 
         public FPToSimilarities(int[] maxOffsets, int[] blockRadius) {
@@ -136,21 +139,25 @@ public class TolerantNCC {
             this.blockRadius = blockRadius;
         }
 
-        @Override
-        public Tuple2<K, Tuple2<FPTuple,FPTuple>> call(Tuple2<K, Tuple2<Tuple2<FPTuple,FPTuple>,Tuple2<FPTuple,FPTuple>>> t) throws Exception {
-            FloatProcessor fixed = t._2()._1()._1().rebuild();
-            FloatProcessor moving = t._2()._2()._1().rebuild();
-            FloatProcessor fixedMask = t._2()._1()._2().rebuild();
-            FloatProcessor movingMask = t._2()._2()._2().rebuild();
+        @SuppressWarnings("rawtypes")
+		@Override
+        public Tuple2<K, Tuple2<FloatProcessor,FloatProcessor>> 
+        call(Tuple2<K, Tuple2<Tuple2<FloatProcessor,FloatProcessor>,Tuple2<FloatProcessor,FloatProcessor>>> t) throws Exception {
+            FloatProcessor fixed = t._2()._1()._1();
+            FloatProcessor moving = t._2()._2()._1();
+            FloatProcessor fixedMask = t._2()._1()._2();
+            FloatProcessor movingMask = t._2()._2()._2();
 
             K k = t._1();
 
             int x =0, y = 0;
             if ( k instanceof Tuple2 )
+            {
                 if ( ((Tuple2) k)._1() instanceof Integer )
                     x = ((Integer) ((Tuple2) k)._1()).intValue();
-            if ( ((Tuple2) k)._2() instanceof Integer )
-                y = ((Integer) ((Tuple2) k)._2()).intValue();
+                if ( ((Tuple2) k)._2() instanceof Integer )
+                	y = ((Integer) ((Tuple2) k)._2()).intValue();
+            }
 
             Tuple2<FloatProcessor, FloatProcessor> ccs = tolerantNCC(
                     (FloatProcessor) fixed.duplicate(),
@@ -161,15 +168,19 @@ public class TolerantNCC {
                     blockRadius,
                     x ,
                     y );
-            return Utility.tuple2( t._1(), Utility.tuple2( new FPTuple( ccs._1()), new FPTuple( ccs._2()) ) );
+            return Utility.tuple2( t._1(), Utility.tuple2( ccs._1(), ccs._2() ) );
         }
     }
 
     public static class AverageBlocks<K>
-    implements PairFunction<Tuple2<K,Tuple2<FPTuple,FPTuple>>,K,HashMap<Tuple2<Integer,Integer>,Double>>
+    implements PairFunction<Tuple2<K,Tuple2<FloatProcessor,FloatProcessor>>,K,HashMap<Tuple2<Integer,Integer>,Double>>
     {
 
-        private final int[] blockRadius;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 6067709319074903557L;
+		private final int[] blockRadius;
         private final int[] stepSize;
 
         public AverageBlocks(int[] blockRadius, int[] stepSize) {
@@ -178,8 +189,8 @@ public class TolerantNCC {
         }
 
         @Override
-        public Tuple2<K, HashMap<Tuple2<Integer, Integer>, Double>> call(Tuple2<K, Tuple2<FPTuple,FPTuple>> t) throws Exception {
-            return Utility.tuple2( t._1(), average( t._2()._1().rebuild(), t._2()._2().rebuild(), blockRadius, stepSize ) );
+        public Tuple2<K, HashMap<Tuple2<Integer, Integer>, Double>> call(Tuple2<K, Tuple2<FloatProcessor,FloatProcessor>> t) throws Exception {
+            return Utility.tuple2( t._1(), average( t._2()._1(), t._2()._2(), blockRadius, stepSize ) );
         }
     }
 

@@ -26,7 +26,6 @@ import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
@@ -75,7 +74,8 @@ public class SparkRenderTransformedTransform {
         final double[] stepsDouble = new double[]{steps[0], steps[1]};
 
         ArrayList<Integer> indices = Utility.arange(size);
-        JavaPairRDD<Integer, FPTuple> sections = sc
+        @SuppressWarnings("serial")
+		JavaPairRDD<Integer, FloatProcessor> sections = sc
                 .parallelize( indices )
                 .mapToPair( new PairFunction<Integer, Integer, Integer>() {
 
@@ -94,7 +94,8 @@ public class SparkRenderTransformedTransform {
                 .cache()
                 ;
 
-        JavaPairRDD<Integer, FPTuple> transforms = sc
+        @SuppressWarnings("serial")
+		JavaPairRDD<Integer, FloatProcessor> transforms = sc
                 .parallelize(indices)
                 .mapToPair(new PairFunction<Integer, Integer, Integer>() {
 
@@ -109,17 +110,17 @@ public class SparkRenderTransformedTransform {
                         return arg0._1();
                     }
                 })
-                .mapToPair(new PairFunction<Integer, Integer, FPTuple>() {
+                .mapToPair(new PairFunction<Integer, Integer, FloatProcessor>() {
                     @Override
-                    public Tuple2<Integer, FPTuple> call(Integer integer) throws Exception {
+                    public Tuple2<Integer, FloatProcessor> call(Integer integer) throws Exception {
                         ImagePlus imp = new ImagePlus(String.format(transformFormat, integer.intValue()));
                         FloatProcessor fp = imp.getProcessor().convertToFloatProcessor();
-                        return Utility.tuple2(integer, new FPTuple(fp));
+                        return Utility.tuple2(integer, fp);
                     }
                 })
                 .cache();
 
-        JavaPairRDD<Integer, FPTuple> transformed = render(sc, sections, transforms, stepsDouble, radiiDouble, dim);
+        JavaPairRDD<Integer, FloatProcessor> transformed = render(sc, sections, transforms, stepsDouble, radiiDouble, dim);
 
         List<Tuple2<Integer, Boolean>> successOnWrite = transformed
                 .mapToPair(new Utility.WriteToFormatString<Integer>(outputFormat))
@@ -136,10 +137,10 @@ public class SparkRenderTransformedTransform {
 
     }
 
-    public static JavaPairRDD<Integer, FPTuple> render(
+    public static JavaPairRDD<Integer, FloatProcessor> render(
             final JavaSparkContext sc,
-            final JavaPairRDD<Integer, FPTuple> sections,
-            final JavaPairRDD<Integer, FPTuple> transforms,
+            final JavaPairRDD<Integer, FloatProcessor> sections,
+            final JavaPairRDD<Integer, FloatProcessor> transforms,
             final double[] stepsDouble,
             final double[] radiiDouble,
             final long[] dim )
@@ -148,14 +149,15 @@ public class SparkRenderTransformedTransform {
         final int width = (int) dim[0];
         final int height = (int) dim[1];
 
-        JavaPairRDD<Integer, Tuple2<FPTuple, Integer>> transformsToRequiredSectionsMapping = transforms
-                .mapToPair(new PairFunction<Tuple2<Integer, FPTuple>, Integer, Tuple2<FPTuple, HashSet<Integer>>>() {
+        @SuppressWarnings("serial")
+		JavaPairRDD<Integer, Tuple2<FloatProcessor, Integer>> transformsToRequiredSectionsMapping = transforms
+                .mapToPair(new PairFunction<Tuple2<Integer, FloatProcessor>, Integer, Tuple2<FloatProcessor, HashSet<Integer>>>() {
                     @Override
-                    public Tuple2<Integer, Tuple2<FPTuple, HashSet<Integer>>> call(Tuple2<Integer, FPTuple> t) throws Exception {
+                    public Tuple2<Integer, Tuple2<FloatProcessor, HashSet<Integer>>> call(Tuple2<Integer, FloatProcessor> t) throws Exception {
                         HashSet<Integer> s = new HashSet<Integer>();
                         // why need to generate high res image?
-                        FPTuple transformFP = t._2();
-                        ArrayImg<FloatType, FloatArray> transformImg = ArrayImgs.floats(transformFP.pixels, transformFP.width, transformFP.height);
+                        FloatProcessor transformFP = t._2();
+                        ArrayImg<FloatType, FloatArray> transformImg = ArrayImgs.floats((float[])transformFP.getPixels(), transformFP.getWidth(), transformFP.getHeight());
                         RealRandomAccessible<FloatType> extendedAndInterpolatedTransform
                                 = Views.interpolate(Views.extendBorder(transformImg), new NLinearInterpolatorFactory<FloatType>());
                         RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledTransformImg
@@ -173,17 +175,17 @@ public class SparkRenderTransformedTransform {
                         return Utility.tuple2(t._1(), Utility.tuple2(t._2(), s));
                     }
                 })
-                .flatMapToPair(new PairFlatMapFunction<Tuple2<Integer, Tuple2<FPTuple, HashSet<Integer>>>, Integer, Tuple2<FPTuple, Integer>>() {
+                .flatMapToPair(new PairFlatMapFunction<Tuple2<Integer, Tuple2<FloatProcessor, HashSet<Integer>>>, Integer, Tuple2<FloatProcessor, Integer>>() {
                     @Override
-                    public Iterable<Tuple2<Integer, Tuple2<FPTuple, Integer>>>
-                    call(Tuple2<Integer, Tuple2<FPTuple, HashSet<Integer>>> t) throws Exception {
+                    public Iterable<Tuple2<Integer, Tuple2<FloatProcessor, Integer>>>
+                    call(Tuple2<Integer, Tuple2<FloatProcessor, HashSet<Integer>>> t) throws Exception {
                         final Integer idx = t._1();
-                        final FPTuple data = t._2()._1();
+                        final FloatProcessor data = t._2()._1();
                         final HashSet<Integer> s = t._2()._2();
-                        return new Iterable<Tuple2<Integer, Tuple2<FPTuple, Integer>>>() {
+                        return new Iterable<Tuple2<Integer, Tuple2<FloatProcessor, Integer>>>() {
                             @Override
-                            public Iterator<Tuple2<Integer, Tuple2<FPTuple, Integer>>> iterator() {
-                                return new Iterator<Tuple2<Integer, Tuple2<FPTuple, Integer>>>() {
+                            public Iterator<Tuple2<Integer, Tuple2<FloatProcessor, Integer>>> iterator() {
+                                return new Iterator<Tuple2<Integer, Tuple2<FloatProcessor, Integer>>>() {
                                     final Iterator<Integer> it = s.iterator();
 
                                     @Override
@@ -192,7 +194,7 @@ public class SparkRenderTransformedTransform {
                                     }
 
                                     @Override
-                                    public Tuple2<Integer, Tuple2<FPTuple, Integer>> next() {
+                                    public Tuple2<Integer, Tuple2<FloatProcessor, Integer>> next() {
                                         return Utility.tuple2(idx, Utility.tuple2(data, it.next()));
                                     }
 
@@ -206,34 +208,35 @@ public class SparkRenderTransformedTransform {
                     }
                 })
                         // ( target-index -> ... ==> source-index -> ... )
-                .mapToPair(new PairFunction<Tuple2<Integer, Tuple2<FPTuple, Integer>>, Integer, Tuple2<FPTuple, Integer>>() {
+                .mapToPair(new PairFunction<Tuple2<Integer, Tuple2<FloatProcessor, Integer>>, Integer, Tuple2<FloatProcessor, Integer>>() {
                     @Override
-                    public Tuple2<Integer, Tuple2<FPTuple, Integer>> call(Tuple2<Integer, Tuple2<FPTuple, Integer>> t) throws Exception {
+                    public Tuple2<Integer, Tuple2<FloatProcessor, Integer>> call(Tuple2<Integer, Tuple2<FloatProcessor, Integer>> t) throws Exception {
                         return Utility.tuple2(t._2()._2(), Utility.tuple2(t._2()._1(), t._1()));
                     }
                 })
                 ;
 
-        JavaPairRDD<Integer, Tuple2<FPTuple, HashMap<Integer, FPTuple>>> targetsAndSections = sections
+        @SuppressWarnings("serial")
+		JavaPairRDD<Integer, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>> targetsAndSections = sections
                 .join(transformsToRequiredSectionsMapping)
-                .mapToPair(new PairFunction<Tuple2<Integer, Tuple2<FPTuple, Tuple2<FPTuple, Integer>>>, Integer, Tuple2<FPTuple, HashMap<Integer, FPTuple>>>() {
+                .mapToPair(new PairFunction<Tuple2<Integer, Tuple2<FloatProcessor, Tuple2<FloatProcessor, Integer>>>, Integer, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>>() {
                     @Override
-                    public Tuple2<Integer, Tuple2<FPTuple, HashMap<Integer, FPTuple>>>
-                    call(Tuple2<Integer, Tuple2<FPTuple, Tuple2<FPTuple, Integer>>> t) throws Exception {
+                    public Tuple2<Integer, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>>
+                    call(Tuple2<Integer, Tuple2<FloatProcessor, Tuple2<FloatProcessor, Integer>>> t) throws Exception {
                         Integer sectionIndex = t._1();
                         Integer targetIndex = t._2()._2()._2();
-                        FPTuple transform = t._2()._2()._1();
-                        FPTuple section = t._2()._1();
-                        HashMap<Integer, FPTuple> m = new HashMap<Integer, FPTuple>();
+                        FloatProcessor transform = t._2()._2()._1();
+                        FloatProcessor section = t._2()._1();
+                        HashMap<Integer, FloatProcessor> m = new HashMap<Integer, FloatProcessor>();
                         m.put(sectionIndex, section);
                         return Utility.tuple2(targetIndex, Utility.tuple2(transform, m));
                     }
                 })
-                .reduceByKey(new Function2<Tuple2<FPTuple, HashMap<Integer, FPTuple>>, Tuple2<FPTuple, HashMap<Integer, FPTuple>>, Tuple2<FPTuple, HashMap<Integer, FPTuple>>>() {
+                .reduceByKey(new Function2<Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>>() {
                     @Override
-                    public Tuple2<FPTuple, HashMap<Integer, FPTuple>>
-                    call(Tuple2<FPTuple, HashMap<Integer, FPTuple>> t1, Tuple2<FPTuple, HashMap<Integer, FPTuple>> t2) throws Exception {
-                        HashMap<Integer, FPTuple> m = t1._2();
+                    public Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>
+                    call(Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>> t1, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>> t2) throws Exception {
+                        HashMap<Integer, FloatProcessor> m = t1._2();
                         m.putAll(t2._2());
                         return Utility.tuple2(t1._1(), m);
                     }
@@ -241,14 +244,15 @@ public class SparkRenderTransformedTransform {
                 .cache()
                 ;
 
-        JavaPairRDD<Integer, FPTuple> transformed = targetsAndSections
-                .mapToPair(new PairFunction<Tuple2<Integer, Tuple2<FPTuple, HashMap<Integer, FPTuple>>>, Integer, FPTuple>() {
+        @SuppressWarnings("serial")
+		JavaPairRDD<Integer, FloatProcessor> transformed = targetsAndSections
+                .mapToPair(new PairFunction<Tuple2<Integer, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>>, Integer, FloatProcessor>() {
                     @Override
-                    public Tuple2<Integer, FPTuple> call(Tuple2<Integer, Tuple2<FPTuple, HashMap<Integer, FPTuple>>> t) throws Exception {
+                    public Tuple2<Integer, FloatProcessor> call(Tuple2<Integer, Tuple2<FloatProcessor, HashMap<Integer, FloatProcessor>>> t) throws Exception {
                         Integer index = t._1();
-                        FPTuple transformFP = t._2()._1();
-                        HashMap<Integer, FPTuple> m = t._2()._2();
-                        ArrayImg<FloatType, FloatArray> transformImg = ArrayImgs.floats(transformFP.pixels, transformFP.width, transformFP.height);
+                        FloatProcessor transformFP = t._2()._1();
+                        HashMap<Integer, FloatProcessor> m = t._2()._2();
+                        ArrayImg<FloatType, FloatArray> transformImg = ArrayImgs.floats((float[])transformFP.getPixels(), transformFP.getWidth(), transformFP.getHeight());
                         RealRandomAccessible<FloatType> extendedAndInterpolatedTransform
                                 = Views.interpolate(Views.extendBorder(transformImg), new NLinearInterpolatorFactory<FloatType>());
                         RealTransformRandomAccessible<FloatType, InverseRealTransform> scaledTransformImg
@@ -273,18 +277,18 @@ public class SparkRenderTransformedTransform {
                             float weightSum = 0.0f;
                             float val = 0.0f;
 
-                            FPTuple lower = m.get(lowerPos);
+                            FloatProcessor lower = m.get(lowerPos);
                             if ( lower != null )
                             {
                                 weightSum += lowerWeight;
-                                val += lower.rebuild().getf( x, y )*lowerWeight;
+                                val += lower.getf( x, y )*lowerWeight;
                             }
 
-                            FPTuple upper = m.get(upperPos);
+                            FloatProcessor upper = m.get(upperPos);
                             if( upper != null )
                             {
                                 weightSum += upperWeight;
-                                val += upper.rebuild().getf( x, y )*upperWeight;
+                                val += upper.getf( x, y )*upperWeight;
                             }
 
 
@@ -311,7 +315,7 @@ public class SparkRenderTransformedTransform {
 //                            }
 
                         }
-                        return Utility.tuple2( index, new FPTuple( targetPixels, width, height ) );
+                        return Utility.tuple2( index, new FloatProcessor( width, height, targetPixels ) );
                     }
                 });
 

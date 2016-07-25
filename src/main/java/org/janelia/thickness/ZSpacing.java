@@ -15,12 +15,12 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.experiments.Render;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.utility.DPTuple;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
 import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
 import loci.formats.FormatException;
 import scala.Tuple2;
 
@@ -45,7 +45,6 @@ public class ZSpacing
 			final JavaSparkContext sc,
 			final ScaleOptions scaleOptions ) throws FormatException, IOException
 	{
-//        new ImageJ();
 		final String sourcePattern = scaleOptions.source;
 		final String maskPattern = scaleOptions.mask;
 		final String root = scaleOptions.target;
@@ -53,16 +52,12 @@ public class ZSpacing
 		final int imageScaleLevel = scaleOptions.scale;
 		final int start = scaleOptions.start;
 		final int stop = scaleOptions.stop;
-//        FileStitcher reader = new FileStitcher( isPattern );
-//        reader.setId( fileName );
-
 		final int size = stop - start;
-
-		final int[] blockSize = new int[] { 256, 256 };
 
 		final ArrayList< Integer > indices = Utility.arange( size );
 
-		final JavaPairRDD< Integer, Tuple2< FPTuple, FPTuple > > sections = sc
+		@SuppressWarnings("serial")
+		final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > sections = sc
 				.parallelize( indices )
 				.mapToPair( new PairFunction< Integer, Integer, Integer >()
 				{
@@ -83,12 +78,11 @@ public class ZSpacing
 				} )
 				.mapToPair( new Utility.LoadFileTupleFromPatternTuple( sourcePattern, maskPattern ) )
 				.mapToPair( new Utility.DownSampleImages< Integer >( imageScaleLevel ) )
-//                .mapToPair( new Utility.GaussianBlur<Integer>( 2.0 ) )
 				.cache();
 
-		final FPTuple firstImg = sections.take( 1 ).get( 0 )._2()._1();
-		final int width = firstImg.width;
-		final int height = firstImg.height;
+		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2()._1();
+		final int width = firstImg.getWidth();
+		final int height = firstImg.getHeight();
 
 		final double[] startingCoordinates = new double[ size ];
 		for ( int i = 0; i < size; ++i )
@@ -100,8 +94,6 @@ public class ZSpacing
 
 		final int[][] radiiArray = scaleOptions.radii;
 		final int[][] stepsArray = scaleOptions.steps;
-		final int[][] correlationBlockRadiiArray = scaleOptions.correlationBlockRadii;
-		final int[][] maxOffsetsArray = scaleOptions.maxOffsets;
 		final Options[] options = scaleOptions.inference;
 
 		int maxRange = 0;
@@ -133,10 +125,11 @@ public class ZSpacing
 //        matrixGenerator.ensurePersistence();
 //        TolerantNCC tolerantNCC = new TolerantNCC(sectionPairs);
 //        tolerantNCC.ensurePersistence();
-		final JavaPairRDD< Integer, FPTuple > sectionsDropWeights = sections.mapToPair( new PairFunction< Tuple2< Integer, Tuple2< FPTuple, FPTuple > >, Integer, FPTuple >()
+		final JavaPairRDD< Integer, FloatProcessor > sectionsDropWeights = sections.mapToPair( 
+				new PairFunction< Tuple2< Integer, Tuple2< FloatProcessor, FloatProcessor > >, Integer, FloatProcessor >()
 		{
 			@Override
-			public Tuple2< Integer, FPTuple > call( final Tuple2< Integer, Tuple2< FPTuple, FPTuple > > t ) throws Exception
+			public Tuple2< Integer, FloatProcessor > call( final Tuple2< Integer, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
 			{
 				return Utility.tuple2( t._1(), t._2()._1() );
 			}
@@ -223,7 +216,7 @@ public class ZSpacing
 			currentCoordinates.cache().count();
 			System.out.println( "Calculated " + currentCoordinates.count() + " coordinates" );
 
-			final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices =
+			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =
 					generator.run( options[ i ].comparisonRange, currentStep, currentOffset );
 
 			System.out.println( "Calculated " + matrices.cache().count() + " matrices" );
