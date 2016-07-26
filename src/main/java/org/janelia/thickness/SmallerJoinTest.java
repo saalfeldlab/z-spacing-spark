@@ -142,8 +142,8 @@ public class SmallerJoinTest {
         SparkConf conf = new SparkConf()
         		.setAppName("Smaller Joins!")
         		.setMaster("local[*]")
-        	    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-        	    .set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+        		.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        		.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
         		;
         JavaSparkContext sc = new JavaSparkContext(conf);
         final String pattern = "/groups/saalfeld/saalfeldlab/FROM_TIER2/hanslovskyp/flyem/data/Z0115-22_Sec27/align1/Thick/image.%05d.png";

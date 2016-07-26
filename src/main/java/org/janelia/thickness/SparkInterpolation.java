@@ -320,9 +320,9 @@ public class SparkInterpolation {
         SparkConf conf = new SparkConf()
         		.setAppName("InterpolationTest")
         		.setMaster("local[*]")
-        	    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-        	    .set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
-        	    ;
+        		.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        		.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+        		;
         JavaSparkContext sc = new JavaSparkContext(conf);
         final int[] dim = new int[]{20, 20};
         int[] radii1 = new int[]{5, 5};
