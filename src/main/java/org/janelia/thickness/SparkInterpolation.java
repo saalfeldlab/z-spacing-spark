@@ -6,6 +6,7 @@ import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.array.ArrayRandomAccess;
 import net.imglib2.img.basictypeaccess.array.DoubleArray;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
 import net.imglib2.realtransform.RealViews;
@@ -316,7 +317,12 @@ public class SparkInterpolation {
     }
 
     public static void main(String[] args) {
-        SparkConf conf = new SparkConf().setAppName("InterpolationTest").setMaster("local");
+        SparkConf conf = new SparkConf()
+        		.setAppName("InterpolationTest")
+        		.setMaster("local[*]")
+        	    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        	    .set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+        	    ;
         JavaSparkContext sc = new JavaSparkContext(conf);
         final int[] dim = new int[]{20, 20};
         int[] radii1 = new int[]{5, 5};
@@ -372,7 +378,7 @@ public class SparkInterpolation {
         );
 
         RealTransformRandomAccessible<DoubleType, InverseRealTransform> transformed =
-                RealViews.transform(Views.interpolate(Views.extendBorder(sourceImg), new NLinearInterpolatorFactory<DoubleType>()), tf);
+                RealViews.transform(Views.interpolate(Views.extendBorder(sourceImg), new NearestNeighborInterpolatorFactory<DoubleType>()), tf);
 
 
         for( Tuple2<Tuple2<Integer, Integer>, double[]> bla : rddCollected )
