@@ -24,7 +24,6 @@ public class ScaleOptions {
     public final Options[] inference;
     public final int scale;
     public final String source;
-    public final String mask;
     public final String target;
     public final int start;
     public final int stop;
@@ -41,7 +40,6 @@ public class ScaleOptions {
             Options[] inference,
             int scale,
             String source,
-            String mask,
             String target,
             int start,
             int stop,
@@ -57,7 +55,6 @@ public class ScaleOptions {
         this.inference = inference;
         this.scale = scale;
         this.source = source;
-        this.mask = mask;
         this.target = target;
         this.start = start;
         this.stop = stop;
@@ -108,7 +105,6 @@ public class ScaleOptions {
 
         int scale = json.get( "scale" ) == null ? 0 : json.get( "scale" ).getAsInt();
         String source = json.get( "source" ).getAsString();
-        String mask   = json.get( "mask" ).getAsString();
         String target = json.get( "target" ).getAsString();
 
         int start = json.get( "start" ).getAsInt();
@@ -190,7 +186,7 @@ public class ScaleOptions {
 
         return new ScaleOptions(
                 steps, radii, correlationBlockRadii,
-                maxOffsets, opts, scale, source, mask,
+                maxOffsets, opts, scale, source,
                 target, start, stop, joinStepSize, logMatrices,
                 chunkSizes, overlaps );
 //		System.out.println( defaultOptionsJson.toString() );

@@ -51,7 +51,6 @@ public class ZSpacing
 			final ScaleOptions scaleOptions ) throws FormatException, IOException
 	{
 		final String sourcePattern = scaleOptions.source;
-		final String maskPattern = scaleOptions.mask;
 		final String root = scaleOptions.target;
 		final String outputFolder = root + "/%02d";
 		final int imageScaleLevel = scaleOptions.scale;
@@ -60,16 +59,16 @@ public class ZSpacing
 		final int size = stop - start;
 
 		final ArrayList< Integer > indices = Utility.arange( start, stop );
-		final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > sections = sc
+		final JavaPairRDD< Integer, FloatProcessor > sections = sc
 				.parallelize( indices )
 				.mapToPair( new Utility.Duplicate<>() )
 				.sortByKey()
 				.map( new Utility.DropValue<>() )
-				.mapToPair( new Utility.LoadFileTupleFromPatternTuple( sourcePattern, maskPattern ) )
-				.mapToPair( new Utility.DownSampleImages< Integer >( imageScaleLevel ) )
+				.mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) )
+				.mapToPair( new Utility.DownSample<>( imageScaleLevel ) )
 				.cache();
 
-		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2()._1();
+		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2();
 		final int width = firstImg.getWidth();
 		final int height = firstImg.getHeight();
 
@@ -114,16 +113,11 @@ public class ZSpacing
 //        matrixGenerator.ensurePersistence();
 //        TolerantNCC tolerantNCC = new TolerantNCC(sectionPairs);
 //        tolerantNCC.ensurePersistence();
-		final JavaPairRDD< Integer, FloatProcessor > sectionsDropWeights = sections.mapToPair(new DropWeights<>());
-		final SmallerJoinTest generator = new SmallerJoinTest( sc, sectionsDropWeights, scaleOptions.joinStepSize, maxRange, dim, true );
-
-//        new ImageJ();
-
-//        IJ.log( Arrays.toString( dim ) );
+//		final JavaPairRDD< Integer, FloatProcessor > sectionsDropWeights = sections.mapToPair(new DropWeights<>());
+		final SmallerJoinTest generator = new SmallerJoinTest( sc, sections, scaleOptions.joinStepSize, maxRange, dim, true );
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
-//			IJ.log( "i=" + i );
 			System.out.println( "i=" + i );
 			System.out.println( "Options [" + i + "] = \n" + options[ i ].toString() );
 
@@ -164,7 +158,7 @@ public class ZSpacing
 				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim, new SparkInterpolation.NearestNeighbor() );
 			}
 
-			currentCoordinates.cache().count();
+			currentCoordinates.cache();
 			System.out.println( "Calculated " + currentCoordinates.count() + " coordinates" );
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =

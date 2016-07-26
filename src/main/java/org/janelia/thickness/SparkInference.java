@@ -11,22 +11,14 @@ import org.janelia.thickness.inference.visitor.Visitor;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.utility.MatrixStripConversion;
 
-import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import mpicbg.models.NotEnoughDataPointsException;
 import net.imglib2.Cursor;
-import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.transform.integer.shear.AbstractShearTransform;
-import net.imglib2.transform.integer.shear.ShearTransform;
-import net.imglib2.type.Type;
+import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.view.ExtendedRandomAccessibleInterval;
-import net.imglib2.view.IntervalView;
-import net.imglib2.view.TransformView;
 import net.imglib2.view.Views;
 import scala.Tuple2;
 
@@ -43,18 +35,13 @@ public class SparkInference
 	{
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, double[] > > matricesWithStartingCoordinates = matrices
 				.join( startingCoordinates );
-
-		System.out.flush();
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > > chunked =
-				chunk.getChunks( matricesWithStartingCoordinates );
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, double[] > > results = chunked
+		final JavaPairRDD< Tuple2< Integer, Integer >, double[] > results = matricesWithStartingCoordinates
 				.mapToPair( new Inference<Tuple2<Integer, Integer>>( options ) );
-
-		return chunk.mergeTransforms( results );
+		return results;
 	}
 
 	public static class Inference< K >
-			implements PairFunction< Tuple2< K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > >, K, Tuple2< Integer, double[] > >
+			implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, double[] > >, K, double[] >
 	{
 		private static final long serialVersionUID = 8094812748656050753L;
 
@@ -66,14 +53,16 @@ public class SparkInference
 			this.options = options;
 		}
 
-		public Tuple2< K, Tuple2< Integer, double[] > > call( final Tuple2< K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > > it )
+		public Tuple2< K, double[] > 
+		call( final Tuple2< K, Tuple2< FloatProcessor, double[] > > xyAndMatrixAndCoordinates )
 				throws Exception
 		{
-			final Tuple2< Integer, Tuple2< FloatProcessor, double[] > > t = it._2();
-			final ImagePlus imp = new ImagePlus( "", t._2()._1() );
-			final int w = imp.getWidth();
-			final int h = imp.getHeight();
-			RandomAccessibleInterval< FloatType > matrix = ImageJFunctions.wrapFloat( imp );
+			final Tuple2< FloatProcessor, double[] > matrixAndCoordinates = xyAndMatrixAndCoordinates._2();
+			final FloatProcessor fp = matrixAndCoordinates._1();
+			final float[] data = (float[])fp.getPixels();
+			final int w = fp.getWidth();
+			final int h = fp.getHeight();
+			RandomAccessibleInterval< FloatType > matrix = ArrayImgs.floats( data, w, h );
 			matrix = h == w ? matrix : MatrixStripConversion.stripToMatrix( matrix, new FloatType( Float.NaN ) );
 			// return starting coordinates if one of the values is nan or zero
 			for ( final Cursor< FloatType > c = Views.iterable( matrix ).cursor(); c.hasNext(); )
@@ -82,7 +71,7 @@ public class SparkInference
 				final long x = c.getLongPosition( 0 );
 				final long y = c.getLongPosition( 1 );
 				if ( Math.abs( x - y ) <= options.comparisonRange && ( Float.isNaN( val ) || val == 0.0f ) )
-					return Utility.tuple2( it._1(), Utility.tuple2( t._1(), t._2()._2() ) );
+					return Utility.tuple2( xyAndMatrixAndCoordinates._1(), matrixAndCoordinates._2() );
 			}
 
 			final InferFromMatrix inference = new InferFromMatrix( new GlobalCorrelationFitAverage() );
@@ -91,19 +80,19 @@ public class SparkInference
 //            visitor = new WriteTransformationVisitor(img);
 			try
 			{
-				final double[] coordinates = inference.estimateZCoordinates( matrix, t._2()._2(), visitor, options );
+				final double[] coordinates = inference.estimateZCoordinates( matrix, matrixAndCoordinates._2(), visitor, options );
 				for ( int i = 0; i < coordinates.length; ++i )
 				{
 					final double c = coordinates[ i ];
-					if ( Double.isNaN( c ) ) { return Utility.tuple2( it._1(), Utility.tuple2( t._1(), t._2()._2() ) ); }
+					if ( Double.isNaN( c ) ) { return Utility.tuple2( xyAndMatrixAndCoordinates._1(), matrixAndCoordinates._2() ); }
 				}
-				return Utility.tuple2( it._1(), Utility.tuple2( t._1(), coordinates ) );
+				return Utility.tuple2( xyAndMatrixAndCoordinates._1(), coordinates );
 			}
 			catch ( final NotEnoughDataPointsException e )
 			{
-				System.err.println( "Fail at inference for coordinate " + t._1() );
+				System.err.println( "Fail at inference for coordinate " + matrixAndCoordinates._1() );
 				e.printStackTrace( System.err );
-				return Utility.tuple2( it._1(), null );
+				return Utility.tuple2( xyAndMatrixAndCoordinates._1(), matrixAndCoordinates._2() );
 			}
 		}
 	}
