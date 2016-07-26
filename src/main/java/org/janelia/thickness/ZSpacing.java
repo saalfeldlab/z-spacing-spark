@@ -10,7 +10,6 @@ import java.util.List;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.experiments.Render;
 import org.janelia.thickness.inference.Options;
@@ -155,6 +154,8 @@ public class ZSpacing
 			}
 			else
 			{
+				Tuple2<Double, Double> min = Utility.tuple2( 0.0, 0.0 );
+				Tuple2<Double, Double> max = Utility.tuple2( (double)previousDim[0]-1, (double)previousDim[1]-1);
 				final BlockCoordinates cbs1 = new BlockCoordinates( previousOffset, previousStep );
 				final BlockCoordinates cbs2 = new BlockCoordinates( currentOffset, currentStep );
 				final ArrayList< BlockCoordinates.Coordinate > newCoords = cbs2.generateFromBoundingBox( dim );
@@ -162,7 +163,10 @@ public class ZSpacing
 				final ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > mapping = new ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > >();
 				for ( final BlockCoordinates.Coordinate n : newCoords )
 				{
-					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateOtherLocalCoordiantesIntoLocalSpace( n ) ) );
+					mapping.add( Utility.tuple2( 
+							n.getLocalCoordinates(), 
+							Utility.max( Utility.min( cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n), max ), min )
+							) );
 				}
 
 				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim, new SparkInterpolation.NearestNeighbor() );
@@ -186,7 +190,6 @@ public class ZSpacing
 			}
 
 			System.out.println( currentCoordinates.take( 1 ).get( 0 )._1() );
-//            new ImagePlus( "", matrices.take(1).get(0)._2().rebuild() ).show();
 
 			System.out.println( "Before inference." );
 			System.out.println( options[ i ].toString() + " " + options[ i ].comparisonRange );
