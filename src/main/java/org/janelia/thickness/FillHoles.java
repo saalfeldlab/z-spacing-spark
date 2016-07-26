@@ -1,7 +1,10 @@
 package org.janelia.thickness;
 
+import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
+
+import scala.Tuple2;
 
 import java.util.Arrays;
 
@@ -135,6 +138,20 @@ public class FillHoles {
         while ( numSaturatedPixels != numSaturatedPixelsBefore );
 
         return input;
+    }
+
+    public static class SparkPairFunction implements PairFunction< Tuple2< Integer, DPTuple >, Integer, DPTuple > {
+
+		/**
+		 *
+		 */
+		private static final long serialVersionUID = -8558217630491683795L;
+
+		@Override
+		public Tuple2< Integer, DPTuple > call( final Tuple2< Integer, DPTuple > t ) throws Exception
+		{
+			return Utility.tuple2( t._1(), FillHoles.fill( t._2().clone() ) );
+		}
     }
 
     public static void main(String[] args) {

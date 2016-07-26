@@ -43,6 +43,8 @@ public class ZSpacing
 
 		run( sc, scaleOptions );
 
+		sc.close();
+
 	}
 
 	public static void run(
@@ -140,46 +142,11 @@ public class ZSpacing
 
 			final int[] currentOffset = radiiArray[ i ];
 			final int[] currentStep = stepsArray[ i ];
-			final int[] currentDim = new int[] {
-					Math.max( 1, ( int ) Math.ceil( ( dim[ 0 ] - currentOffset[ 0 ] ) * 1.0 / currentStep[ 0 ] ) ),
-					Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - currentOffset[ 1 ] ) * 1.0 / currentStep[ 1 ] ) )
-			};
-//            IJ.log( "i=" + i + ": " + Arrays.toString( currentDim) + Arrays.toString( currentOffset ) + Arrays.toString( currentStep ) + " " + size );
+			final int[] currentDim = getDimensionsForStepAndRadius( dim, currentStep, currentOffset );
 
 			final int[] previousOffset = i > 0 ? radiiArray[ i - 1 ] : new int[] { 0, 0 };
 			final int[] previousStep = i > 0 ? stepsArray[ i - 1 ] : new int[] { width, height };
-			final int[] previousDim = new int[] {
-					Math.max( 1, ( int ) Math.ceil( ( dim[ 0 ] - previousOffset[ 0 ] ) * 1.0 / previousStep[ 0 ] ) ),
-					Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - previousOffset[ 1 ] ) * 1.0 / previousStep[ 1 ] ) )
-			};
-
-			final BlockCoordinates cbs = new BlockCoordinates( currentOffset, currentStep );
-			final ArrayList< BlockCoordinates.Coordinate > xyCoordinatesLocalAndWorld = cbs.generateFromBoundingBox( dim );
-			final ArrayList< Tuple2< Integer, Integer > > xyCoordinates = new ArrayList< Tuple2< Integer, Integer > >();
-			for ( final BlockCoordinates.Coordinate xy : xyCoordinatesLocalAndWorld )
-			{
-				xyCoordinates.add( xy.getLocalCoordinates() );
-			}
-
-			System.out.println( "previousDim: " + Arrays.toString( previousDim ) + "(" + ( previousDim[ 0 ] * previousDim[ 1 ] ) + ")" +
-					" " + xyCoordinates.size() );
-
-			// min and max of previous step
-			final Tuple2< Integer, Integer > xMinMax;
-			final Tuple2< Integer, Integer > yMinMax;
-			if ( xyCoordinates.size() == 0 )
-			{
-				final Tuple2< Integer, Integer > t = Utility.tuple2( currentOffset[ 0 ], currentOffset[ 1 ] );
-				xyCoordinates.add( t );
-//                globalCoordinatesTolocalCoordinatesMapping.put( t, t );
-				xMinMax = Utility.tuple2( previousOffset[ 0 ], previousOffset[ 0 ] );
-				yMinMax = Utility.tuple2( previousOffset[ 1 ], previousOffset[ 1 ] );
-			}
-			else
-			{
-				xMinMax = Utility.tuple2( 0, ( ( dim[ 0 ] - 2 * previousOffset[ 0 ] - 1 ) / previousStep[ 0 ] ) * previousStep[ 0 ] );
-				yMinMax = Utility.tuple2( 0, ( ( dim[ 1 ] - 2 * previousOffset[ 1 ] - 1 ) / previousStep[ 1 ] ) * previousStep[ 1 ] );
-			}
+			final int[] previousDim = getDimensionsForStepAndRadius( dim, previousStep, previousOffset );
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > currentCoordinates;
 			if ( i == 0 )
@@ -228,39 +195,19 @@ public class ZSpacing
 
 			final Chunk chunk = new Chunk( scaleOptions.chunkSizes[ i ], scaleOptions.overlaps[ i ], size, options[ i ].comparisonRange );
 
-			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > result = SparkInference.inferCoordinates(
-					sc,
-					matrices,
-					currentCoordinates,
-					chunk,
-					options[ i ],
-					lutPattern )
-					.cache();
+			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > result =
+					SparkInference.inferCoordinates(sc, matrices, currentCoordinates, chunk, options[ i ], lutPattern ).cache();
 			result.count();
 			System.out.println( "Inference done!" );
 
 			// log success and failure
 			final String successAndFailurePath = String.format( outputFolder, i ) + "/successAndFailure.tif";
 			final ByteProcessor ip = LogSuccessAndFailure.log( sc, result, currentDim );
-//            if ( ip.get( 0, 0 ) != 0 ) {
-//                sc.close();
-//                return;
-//            }
 			System.out.println( "Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
 
 			final ColumnsAndSections columnsAndSections = new ColumnsAndSections( currentDim, size );
 			final JavaPairRDD< Integer, DPTuple > coordinateSections = columnsAndSections.columnsToSections( sc, result );
-
-			final JavaPairRDD< Integer, DPTuple > diffused = coordinateSections
-					// TODO write something like diffusion: done?
-					.mapToPair( new PairFunction< Tuple2< Integer, DPTuple >, Integer, DPTuple >()
-					{
-						@Override
-						public Tuple2< Integer, DPTuple > call( final Tuple2< Integer, DPTuple > t ) throws Exception
-						{
-							return Utility.tuple2( t._1(), FillHoles.fill( t._2().clone() ) );
-						}
-					} );
+			final JavaPairRDD< Integer, DPTuple > diffused = coordinateSections.mapToPair( new FillHoles.SparkPairFunction() );
 
 			coordinates = columnsAndSections.sectionsToColumns( sc, diffused );
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).cache();
@@ -320,8 +267,14 @@ public class ZSpacing
 			final long diff = t._2().longValue() - t._1().longValue();
 			System.out.println( String.format( "Run time for complete iteration: %25dms", diff ) );
 		}
+	}
 
-		sc.close();
+	public static int[] getDimensionsForStepAndRadius( int[] dim, int[] step, int[] radius )
+	{
+		return new int[] {
+				Math.max( 1, ( int ) Math.ceil( ( dim[ 0 ] - radius[ 0 ] ) * 1.0 / step[ 0 ] ) ),
+				Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - radius[ 1 ] ) * 1.0 / step[ 1 ] ) )
+		};
 	}
 
 }
