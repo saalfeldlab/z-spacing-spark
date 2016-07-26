@@ -53,27 +53,6 @@ public class SparkInference
 		return chunk.mergeTransforms( results );
 	}
 
-	public static < T extends Type< T > > RandomAccessibleInterval< T > stripToMatrix( final RandomAccessibleInterval< T > strip, final T dummy )
-	{
-		final ExtendedRandomAccessibleInterval< T, RandomAccessibleInterval< T > > extended = Views.extendValue( strip, dummy );
-		final AbstractShearTransform tf = new ShearTransform( 2, 0, 1 ).inverse();
-		final long w = strip.dimension( 0 ) / 2;
-		final long h = strip.dimension( 1 );
-		final FinalInterval interval = new FinalInterval( new long[] { w, 0 }, new long[] { h + w - 1, h - 1 } );
-		final IntervalView< T > transformed = Views.offsetInterval( new TransformView<>( extended, tf ), interval );
-		return transformed;
-	}
-
-	public static < T extends Type< T > > RandomAccessibleInterval< T > matrixToStrip( final RandomAccessibleInterval< T > matrix, final int range, final T dummy )
-	{
-		final ExtendedRandomAccessibleInterval< T, RandomAccessibleInterval< T > > extended = Views.extendValue( matrix, dummy );
-		final AbstractShearTransform tf = new ShearTransform( 2, 0, 1 );
-		final long h = matrix.dimension( 1 );
-		final FinalInterval interval = new FinalInterval( new long[] { -range, 0 }, new long[] { range, h } );
-		final IntervalView< T > transformed = Views.offsetInterval( new TransformView<>( extended, tf ), interval );
-		return transformed;
-	}
-
 	public static class Inference< K >
 			implements PairFunction< Tuple2< K, Tuple2< Integer, Tuple2< FloatProcessor, double[] > > >, K, Tuple2< Integer, double[] > >
 	{
