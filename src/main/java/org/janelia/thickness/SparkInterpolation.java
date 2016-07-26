@@ -24,6 +24,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -35,11 +36,12 @@ public class SparkInterpolation {
             final JavaSparkContext sc,
             final JavaPairRDD< Tuple2< Integer, Integer >, double[] > source,
             final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates,
-            int[] dim )
+            int[] dim,
+            AssociationPolicy association )
     {
 //        JavaPairRDD<Tuple2<Integer, Integer>, double[]> result = source
         JavaPairRDD<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>> coordinateMatches =
-                source.flatMapToPair(new MatchCoordinates(newCoordinatesToOldCoordinates, dim));
+                source.flatMapToPair(new MatchCoordinates(newCoordinatesToOldCoordinates, dim, association));
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<double[], Double>> mapNewToOld = coordinateMatches.mapToPair(new SwapKey());
 //        for( Tuple2<Tuple2<Integer, Integer>, Tuple2<double[], Double>> mnto : mapNewToOld.collect() )
 //        {
@@ -51,48 +53,45 @@ public class SparkInterpolation {
 
         return result;
     }
-
+    
     public static class MatchCoordinates implements PairFlatMapFunction<
-            Tuple2<Tuple2<Integer, Integer>, double[]>,
-            Tuple2<Tuple2<Integer, Integer>, double[]>,
-            Tuple2<Tuple2<Integer, Integer>, Double>> {
+    Tuple2<Tuple2<Integer, Integer>, double[]>,
+    Tuple2<Tuple2<Integer, Integer>, double[]>,
+    Tuple2<Tuple2<Integer, Integer>, Double>> 
+    {
 
-        /**
+		/**
 		 * 
 		 */
-		private static final long serialVersionUID = -3062200592897561984L;
-		private final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates;
-        private final int[] dim;
-
-        public MatchCoordinates(
+		private static final long serialVersionUID = 663820550414953261L;
+		protected final Broadcast<? extends List<Tuple2<Tuple2<Integer,Integer>,Tuple2<Double,Double>>>> newCoordinatesToOldCoordinates;
+        protected final int[] dim;
+        protected final AssociationPolicy policy;
+        
+    	public MatchCoordinates(
                 Broadcast<? extends List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>>> newCoordinatesToOldCoordinates,
-                final int[] dim ) {
+                final int[] dim,
+                final AssociationPolicy policy ) {
             this.newCoordinatesToOldCoordinates = newCoordinatesToOldCoordinates;
             this.dim = dim;
+            this.policy = policy;
         }
-
-        public double restrictToDimension( double val, int dimension )
+    	
+    	public double restrictToDimension( double val, int dimension )
         {
             return Math.min( Math.max( val, 0 ), dim[dimension] - 1 );
         }
-
-        @Override
+       	
+    	@Override
         public Iterable<Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>>>
         call(final Tuple2<Tuple2<Integer, Integer>, double[]> t) throws Exception {
             final Tuple2<Integer, Integer> oldSpaceInt = t._1();
             final ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>> associations = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>>();
             for (Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> c : newCoordinatesToOldCoordinates.getValue()) {
-
-                Tuple2<Double, Double> oldSpaceDouble = c._2();
-                Tuple2<Long, Long> oldCoordinatesRound = Utility.tuple2(
-                        Math.min(Math.max(Math.round(oldSpaceDouble._1()), 0), this.dim[0] - 1),
-                        Math.min(Math.max(Math.round(oldSpaceDouble._2()), 0), this.dim[1] - 1)
-                );
-                if (    oldCoordinatesRound._1().intValue() == oldSpaceInt._1().intValue() &&
-                        oldCoordinatesRound._2().intValue() == oldSpaceInt._2().intValue() ) {
-                    associations.add(Utility.tuple2(c._1(), 1.0 ));
-                }
+            	policy.associate( c, this.dim, oldSpaceInt, associations );
             }
+            
+            
 
             return new Iterable<Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>>>() {
                 @Override
@@ -117,6 +116,46 @@ public class SparkInterpolation {
                 }
             };
         }
+    }
+    
+    public static interface AssociationPolicy extends Serializable {
+    	public void associate(
+				final Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> newCoordinatesToOldCoordinates,
+				final int[] dim,
+				final Tuple2<Integer, Integer> oldSpaceInt,
+				final ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>> associations
+				);
+    }
+
+    public static class NearestNeighbor implements AssociationPolicy {
+
+
+        
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -5068962347061980225L;
+
+		public void associate(
+				final Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> newCoordinatesToOldCoordinates,
+				final int[] dim,
+				final Tuple2<Integer, Integer> oldSpaceInt,
+				final ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>> associations
+				)
+		{
+			Tuple2<Double, Double> oldSpaceDouble = newCoordinatesToOldCoordinates._2();
+            Tuple2<Long, Long> oldCoordinatesRound = Utility.tuple2(
+                    Math.min(Math.max(Math.round(oldSpaceDouble._1()), 0), dim[0] - 1),
+                    Math.min(Math.max(Math.round(oldSpaceDouble._2()), 0), dim[1] - 1)
+            );
+            if (    oldCoordinatesRound._1().intValue() == oldSpaceInt._1().intValue() &&
+                    oldCoordinatesRound._2().intValue() == oldSpaceInt._2().intValue() ) {
+                associations.add(Utility.tuple2(newCoordinatesToOldCoordinates._1(), 1.0 ));
+            }
+		}
+        
+
+        
     }
 
     public static class SwapKey implements PairFunction<
@@ -356,7 +395,7 @@ public class SparkInterpolation {
         }
 
 
-        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = interpolate(sc, rdd, sc.broadcast(mapping),sourceDim);
+        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = interpolate(sc, rdd, sc.broadcast(mapping),sourceDim, new NearestNeighbor());
 
         List<Tuple2<Tuple2<Integer, Integer>, double[]>> interpolCollected = interpol.collect();
 

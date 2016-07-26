@@ -165,7 +165,7 @@ public class ZSpacing
 					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateOtherLocalCoordiantesIntoLocalSpace( n ) ) );
 				}
 
-				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim );
+				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim, new SparkInterpolation.NearestNeighbor() );
 			}
 
 			currentCoordinates.cache().count();
