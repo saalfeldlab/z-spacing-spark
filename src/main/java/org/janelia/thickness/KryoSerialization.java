@@ -3,9 +3,6 @@
  */
 package org.janelia.thickness;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-
 import org.apache.spark.serializer.KryoRegistrator;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -13,8 +10,6 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
-import ij.ImageJ;
-import ij.ImagePlus;
 import ij.process.FloatProcessor;
 
 /**
