@@ -50,9 +50,9 @@ public class MatrixGenerationFromImagePairs {
         pairsWithinRange.cache().count();
         System.out.println( "Filtered pairs." );
 
-        CorrelationBlocks correlationBlocks = new CorrelationBlocks(correlationBlockRadius, stride);
+        BlockCoordinates correlationBlocks = new BlockCoordinates(correlationBlockRadius, stride);
 
-        final Broadcast<ArrayList<CorrelationBlocks.Coordinate>> coordinates = sc.broadcast(correlationBlocks.generateFromBoundingBox(dim));
+        final Broadcast<ArrayList<BlockCoordinates.Coordinate>> coordinates = sc.broadcast(correlationBlocks.generateFromBoundingBox(dim));
 
         JavaPairRDD<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> pairwiseCorrelations = pairsWithinRange
                 .mapToPair(new SubSectionCorrelations( coordinates, dim ) );
@@ -97,10 +97,10 @@ public class MatrixGenerationFromImagePairs {
 		 * 
 		 */
 		private static final long serialVersionUID = 4914446108059613538L;
-		private final Broadcast<ArrayList<CorrelationBlocks.Coordinate>> coordinates;
+		private final Broadcast<ArrayList<BlockCoordinates.Coordinate>> coordinates;
         private final int[] dim;
 
-        public SubSectionCorrelations(Broadcast<ArrayList<CorrelationBlocks.Coordinate>> coordinates, int[] dim) {
+        public SubSectionCorrelations(Broadcast<ArrayList<BlockCoordinates.Coordinate>> coordinates, int[] dim) {
             this.coordinates = coordinates;
             this.dim = dim;
         }
@@ -114,7 +114,7 @@ public class MatrixGenerationFromImagePairs {
             int[] currentStart = new int[2];
             int[] currentStop = new int[2];
             HashMap<Tuple2<Integer, Integer>, Double> result = new HashMap<Tuple2<Integer, Integer>, Double>();
-            for (CorrelationBlocks.Coordinate coord : coordinates.getValue()) {
+            for (BlockCoordinates.Coordinate coord : coordinates.getValue()) {
                 Tuple2<Integer, Integer> local = coord.getLocalCoordinates();
                 Tuple2<Integer, Integer> global = coord.getWorldCoordinates();
                 Tuple2<Integer, Integer> radius = coord.getRadius();

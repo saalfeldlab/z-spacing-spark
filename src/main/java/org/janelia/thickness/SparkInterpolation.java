@@ -330,16 +330,16 @@ public class SparkInterpolation {
         int[] steps1 = new int[]{5, 5};
         int[] steps2 = new int[]{2, 2};
         int[] sourceDim = new int[] { 3 , 3 };
-        CorrelationBlocks cbs1 = new CorrelationBlocks(radii1, steps1);
-        CorrelationBlocks cbs2 = new CorrelationBlocks(radii2, steps2);
+        BlockCoordinates cbs1 = new BlockCoordinates(radii1, steps1);
+        BlockCoordinates cbs2 = new BlockCoordinates(radii2, steps2);
 
-        ArrayList<CorrelationBlocks.Coordinate> init = cbs1.generateFromBoundingBox(dim);
+        ArrayList<BlockCoordinates.Coordinate> init = cbs1.generateFromBoundingBox(dim);
         @SuppressWarnings("serial")
 		JavaPairRDD<Tuple2<Integer, Integer>, double[]> rdd = sc
                 .parallelize(init)
-                .mapToPair(new PairFunction<CorrelationBlocks.Coordinate, Tuple2<Integer, Integer>, double[]>() {
+                .mapToPair(new PairFunction<BlockCoordinates.Coordinate, Tuple2<Integer, Integer>, double[]>() {
                     @Override
-                    public Tuple2<Tuple2<Integer, Integer>, double[]> call(CorrelationBlocks.Coordinate coordinate) throws Exception {
+                    public Tuple2<Tuple2<Integer, Integer>, double[]> call(BlockCoordinates.Coordinate coordinate) throws Exception {
                         Tuple2<Integer, Integer> wc = coordinate.getWorldCoordinates();
                         return Utility.tuple2(coordinate.getLocalCoordinates(), new double[]{wc._1() + wc._2() * dim[0]});
                     }
@@ -348,11 +348,11 @@ public class SparkInterpolation {
 
         List<Tuple2<Tuple2<Integer, Integer>, double[]>> rddCollected = rdd.collect();
 
-        ArrayList<CorrelationBlocks.Coordinate> newCoords = cbs2.generateFromBoundingBox(dim);
+        ArrayList<BlockCoordinates.Coordinate> newCoords = cbs2.generateFromBoundingBox(dim);
         ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> mapping = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>>();
-        for( CorrelationBlocks.Coordinate n : newCoords )
+        for( BlockCoordinates.Coordinate n : newCoords )
         {
-            mapping.add( Utility.tuple2(n.getLocalCoordinates(), cbs1.translateCoordinateIntoThisBlockCoordinates(n)) );
+            mapping.add( Utility.tuple2(n.getLocalCoordinates(), cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n)) );
         }
 
 

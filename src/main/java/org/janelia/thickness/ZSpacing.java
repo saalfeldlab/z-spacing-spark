@@ -165,10 +165,10 @@ public class ZSpacing
 					Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - previousOffset[ 1 ] ) * 1.0 / previousStep[ 1 ] ) )
 			};
 
-			final CorrelationBlocks cbs = new CorrelationBlocks( currentOffset, currentStep );
-			final ArrayList< CorrelationBlocks.Coordinate > xyCoordinatesLocalAndWorld = cbs.generateFromBoundingBox( dim );
+			final BlockCoordinates cbs = new BlockCoordinates( currentOffset, currentStep );
+			final ArrayList< BlockCoordinates.Coordinate > xyCoordinatesLocalAndWorld = cbs.generateFromBoundingBox( dim );
 			final ArrayList< Tuple2< Integer, Integer > > xyCoordinates = new ArrayList< Tuple2< Integer, Integer > >();
-			for ( final CorrelationBlocks.Coordinate xy : xyCoordinatesLocalAndWorld )
+			for ( final BlockCoordinates.Coordinate xy : xyCoordinatesLocalAndWorld )
 			{
 				xyCoordinates.add( xy.getLocalCoordinates() );
 			}
@@ -200,14 +200,14 @@ public class ZSpacing
 			}
 			else
 			{
-				final CorrelationBlocks cbs1 = new CorrelationBlocks( previousOffset, previousStep );
-				final CorrelationBlocks cbs2 = new CorrelationBlocks( currentOffset, currentStep );
-				final ArrayList< CorrelationBlocks.Coordinate > newCoords = cbs2.generateFromBoundingBox( dim );
+				final BlockCoordinates cbs1 = new BlockCoordinates( previousOffset, previousStep );
+				final BlockCoordinates cbs2 = new BlockCoordinates( currentOffset, currentStep );
+				final ArrayList< BlockCoordinates.Coordinate > newCoords = cbs2.generateFromBoundingBox( dim );
 
 				final ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > mapping = new ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > >();
-				for ( final CorrelationBlocks.Coordinate n : newCoords )
+				for ( final BlockCoordinates.Coordinate n : newCoords )
 				{
-					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateCoordinateIntoThisBlockCoordinates( n ) ) );
+					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateOtherLocalCoordiantesIntoLocalSpace( n ) ) );
 				}
 
 				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim );
