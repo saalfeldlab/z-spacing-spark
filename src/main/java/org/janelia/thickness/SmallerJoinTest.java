@@ -11,6 +11,8 @@ import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.utility.Utility;
 
+import ij.ImageJ;
+import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import scala.Tuple2;
 import scala.Tuple3;
@@ -137,9 +139,14 @@ public class SmallerJoinTest {
     public static void main(String[] args) {
 
 
-        SparkConf conf = new SparkConf().setAppName("Smaller Joins!").setMaster("local[*]");
+        SparkConf conf = new SparkConf()
+        		.setAppName("Smaller Joins!")
+        		.setMaster("local[*]")
+        	    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        	    .set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+        		;
         JavaSparkContext sc = new JavaSparkContext(conf);
-        final String pattern = "/tier2/saalfeld/hanslovskyp/flyem/data/Z0115-22_Sec27/align1/Thick/image.%05d.png";
+        final String pattern = "/groups/saalfeld/saalfeldlab/FROM_TIER2/hanslovskyp/flyem/data/Z0115-22_Sec27/align1/Thick/image.%05d.png";
         final int start = 3750;
         final int stop = start + 500;
         int scaleLevel = 2;
@@ -175,11 +182,11 @@ public class SmallerJoinTest {
 //        List<Tuple2<Tuple2<Integer, Integer>, FPTuple>> strips = run(sc, files, stepSize, range, stride, correlationBlockRadius, dim).collect();
         List<Tuple2<Tuple2<Integer, Integer>, FloatProcessor>> strips = test.run(range, stride, correlationBlockRadius).collect();
         sc.close();
-//        new ImageJ();
-//        for ( Tuple2<Tuple2<Integer, Integer>, FPTuple> s : strips ) {
-//            System.out.println( s );
-//            new ImagePlus( s._1().toString(), s._2().rebuild() ).show();
-//        }
+        new ImageJ();
+        for ( Tuple2<Tuple2<Integer, Integer>, FloatProcessor> s : strips ) {
+            System.out.println( s );
+            new ImagePlus( s._1().toString(), s._2() ).show();
+        }
 
 
     }
