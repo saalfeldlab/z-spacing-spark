@@ -29,8 +29,12 @@ public class ZSpacing
 
 	public static void main( final String[] args ) throws FormatException, IOException
 	{
-		final SparkConf conf = new SparkConf().setAppName( "ZSpacing" )
-				.set( "spark.network.timeout", "600" );
+		final SparkConf conf = new SparkConf()
+				.setAppName( "ZSpacing" )
+				.set( "spark.network.timeout", "600" )
+				.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+				.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+				;
 
 		final JavaSparkContext sc = new JavaSparkContext( conf );
 
