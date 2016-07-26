@@ -65,6 +65,9 @@ public class SparkInterpolationTest implements Serializable {
 		
         BlockCoordinates cbs1 = new BlockCoordinates(radii1, steps1);
         BlockCoordinates cbs2 = new BlockCoordinates(radii2, steps2);
+        
+        Tuple2<Double, Double> min = Utility.tuple2( 0.0, 0.0 );
+        Tuple2<Double, Double> max = Utility.tuple2( (double) sourceDim[0] - 1, (double) sourceDim[1] - 1 );
                 
         ArrayList<BlockCoordinates.Coordinate> newCoords = cbs2.generateFromBoundingBox(dim);
         ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> mapping = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>>();
@@ -72,7 +75,7 @@ public class SparkInterpolationTest implements Serializable {
         {
             mapping.add( Utility.tuple2(
             				n.getLocalCoordinates(), 
-            				cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n)
+            				Utility.max( Utility.min( cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n), max ), min )
             				) );
         }
         JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = SparkInterpolation.interpolate(sc, rdd, sc.broadcast(mapping), sourceDim, policy);
@@ -121,7 +124,7 @@ public class SparkInterpolationTest implements Serializable {
         Logger.getLogger( "org" ).setLevel( Level.OFF );
         Logger.getLogger( "akka" ).setLevel( Level.OFF );
         Logger.getLogger( "spark" ).setLevel( Level.OFF );
-        sc.setLogLevel( "FATAL" );
+        sc.setLogLevel( "OFF" );
         
         final int[] dim = new int[]{20, 20};
         final int[] radii1 = new int[]{5, 5};
