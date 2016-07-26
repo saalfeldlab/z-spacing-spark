@@ -37,20 +37,6 @@ public class CorrelationBlocks implements Serializable
         this.stride = stride;
     }
 
-    @Deprecated
-    public Tuple2< Double, Double > translateCoordinateIntoThisBlockCoordinates(
-            CorrelationBlocks other,
-            Tuple2< Integer, Integer > localCoordinate
-    )
-    {
-        return this.equals( other ) ?
-                Utility.tuple2( localCoordinate._1().doubleValue(), localCoordinate._2().doubleValue() ) :
-                Utility.tuple2(
-                        0.0,0.0 // TODO
-                )
-                ;
-    }
-
     public Tuple2< Double, Double > translateCoordinateIntoThisBlockCoordinates(
             Coordinate other
     )
