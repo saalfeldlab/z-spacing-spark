@@ -65,13 +65,49 @@ public class Utility
 	{
 		return new Tuple2< U, V >( u, v );
 	}
-	
+
 	public static Tuple2< Integer, Integer > tuple2( int[] arr ) {
 		return Utility.tuple2( arr[0], arr[1] );
 	}
-	
+
 	public static Tuple2< Long, Long > tuple2( long[] arr ) {
 		return Utility.tuple2( arr[0], arr[1] );
+	}
+
+	public static int[] arrayInt( Tuple2< Integer, Integer > t )
+	{
+		return arrayInt( t, new int[ 2 ] );
+	}
+
+	public static int[] arrayInt( Tuple2< Integer, Integer> t, int[] array )
+	{
+		array[0] = t._1();
+		array[1] = t._2();
+		return array;
+	}
+
+	public static long[] arrayLong( Tuple2< Long, Long > t )
+	{
+		return arrayLong( t, new long[ 2 ] );
+	}
+
+	public static long[] arrayLong( Tuple2< Long, Long > t, long[] array )
+	{
+		array[0] = t._1();
+		array[1] = t._2();
+		return array;
+	}
+
+	public static double[] arrayDouble( Tuple2< Double, Double > t )
+	{
+		return arrayDouble( t, new double[ 2 ] );
+	}
+
+	public static double[] arrayDouble( Tuple2< Double, Double > t, double[] array )
+	{
+		array[0] = t._1();
+		array[1] = t._2();
+		return array;
 	}
 
 	public static < U, V, W > Tuple3< U, V, W > tuple3( final U u, final V v, final W w )
