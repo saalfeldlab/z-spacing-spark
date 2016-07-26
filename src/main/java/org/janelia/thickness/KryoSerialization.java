@@ -66,27 +66,5 @@ public class KryoSerialization {
 		}
 		
 	}
-	
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		new ImageJ();
-		ImagePlus imp = new ImagePlus("/data/hanslovskyp/strip-example-small.tif");
-		FloatProcessor fp = imp.getProcessor().convertToFloatProcessor();
-		fp.setMinAndMax( 0.0, 0.5 );
-		new ImagePlus( "pre", fp ).show();
-		Kryo kryo = new Kryo();
-		Registrator registrator = new Registrator();
-		registrator.registerClasses(kryo);
-		ByteArrayOutputStream bos = new ByteArrayOutputStream();
-		Output ko = new Output(bos);
-		kryo.writeObject( ko, fp );
-		ko.flush();
-		ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-		Input ki = new Input(bis);
-		FloatProcessor post = (FloatProcessor)kryo.readObject( ki, FloatProcessor.class );
-		
-		new ImagePlus("post", post).show();
-		
-	}
 
 }
