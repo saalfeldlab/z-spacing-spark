@@ -1,19 +1,10 @@
 package org.janelia.thickness;
 
-import net.imglib2.RandomAccess;
-import net.imglib2.img.array.ArrayImg;
-import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.img.array.ArrayRandomAccess;
-import net.imglib2.img.basictypeaccess.array.DoubleArray;
-import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
-import net.imglib2.realtransform.InverseRealTransform;
-import net.imglib2.realtransform.RealTransformRandomAccessible;
-import net.imglib2.realtransform.RealViews;
-import net.imglib2.realtransform.ScaleAndTranslation;
-import net.imglib2.type.numeric.real.DoubleType;
-import net.imglib2.view.Views;
-import org.apache.spark.SparkConf;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -22,13 +13,8 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.utility.Utility;
-import scala.Tuple2;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import scala.Tuple2;
 
 public class SparkInterpolation {
 
@@ -90,8 +76,6 @@ public class SparkInterpolation {
             for (Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> c : newCoordinatesToOldCoordinates.getValue()) {
             	policy.associate( c, this.dim, oldSpaceInt, associations );
             }
-            
-            
 
             return new Iterable<Tuple2<Tuple2<Tuple2<Integer, Integer>, double[]>, Tuple2<Tuple2<Integer, Integer>, Double>>>() {
                 @Override
@@ -156,6 +140,32 @@ public class SparkInterpolation {
         
 
         
+    }
+    
+    
+    public static class BiLinear implements AssociationPolicy
+    {
+
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -1211730761623302862L;
+
+		@Override
+        public void associate(
+				final Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>> newCoordinatesToOldCoordinates,
+				final int[] dim,
+				final Tuple2<Integer, Integer> oldSpaceInt,
+				final ArrayList<Tuple2<Tuple2<Integer, Integer>, Double>> associations
+				) {
+
+        	final Tuple2<Double, Double> newPointInOldCoordinates = newCoordinatesToOldCoordinates._2();
+            double diff1 = Math.abs(newPointInOldCoordinates._1() - oldSpaceInt._1().doubleValue());
+            double diff2 = Math.abs(newPointInOldCoordinates._2() - oldSpaceInt._2().doubleValue());
+            if (diff1 < 1.0 && diff2 < 1.0)
+            	associations.add(Utility.tuple2(newCoordinatesToOldCoordinates._1(), (1.0 - diff1) * (1.0 - diff2)));
+
+        }
     }
 
     public static class SwapKey implements PairFunction<

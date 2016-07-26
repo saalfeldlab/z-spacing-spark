@@ -7,10 +7,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.SparkInterpolation.BiLinear;
 import org.janelia.thickness.SparkInterpolation.NearestNeighbor;
 import org.janelia.thickness.utility.Utility;
 import org.junit.Test;
@@ -23,6 +26,7 @@ import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.array.ArrayRandomAccess;
 import net.imglib2.img.basictypeaccess.array.DoubleArray;
 import net.imglib2.interpolation.InterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.realtransform.InverseRealTransform;
 import net.imglib2.realtransform.RealTransformRandomAccessible;
@@ -59,17 +63,19 @@ public class SparkInterpolationTest implements Serializable {
 	{
 		assertEquals( sourceDim[0]*sourceDim[1], rdd.count() );
 		
-
         BlockCoordinates cbs1 = new BlockCoordinates(radii1, steps1);
         BlockCoordinates cbs2 = new BlockCoordinates(radii2, steps2);
-        
+                
         ArrayList<BlockCoordinates.Coordinate> newCoords = cbs2.generateFromBoundingBox(dim);
         ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> mapping = new ArrayList<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>>();
         for( BlockCoordinates.Coordinate n : newCoords )
         {
-            mapping.add( Utility.tuple2(n.getLocalCoordinates(), cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n)) );
+            mapping.add( Utility.tuple2(
+            				n.getLocalCoordinates(), 
+            				cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n)
+            				) );
         }
-        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = SparkInterpolation.interpolate(sc, rdd, sc.broadcast(mapping),sourceDim, policy);
+        JavaPairRDD<Tuple2<Integer, Integer>, double[]> interpol = SparkInterpolation.interpolate(sc, rdd, sc.broadcast(mapping), sourceDim, policy);
         List<Tuple2<Tuple2<Integer, Integer>, double[]>> interpolCollected = interpol.collect();
         
         assertEquals( targetDim[0]*targetDim[1], interpolCollected.size() );
@@ -86,7 +92,6 @@ public class SparkInterpolationTest implements Serializable {
         RealTransformRandomAccessible<RealComposite<DoubleType>, InverseRealTransform> transformed =
         		RealViews.transform(Views.interpolate(Views.extendBorder(img), factory), tf);
 
-        System.out.println(interpolCollected.size());
         RandomAccess< RealComposite<DoubleType>> t = transformed.randomAccess();
         for ( Tuple2<Tuple2<Integer, Integer>, double[]> bla : interpolCollected )
         {
@@ -107,7 +112,17 @@ public class SparkInterpolationTest implements Serializable {
         		.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
         		.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
         		;
+        Logger.getRootLogger().setLevel( Level.OFF );
+        Logger.getLogger( "org" ).setLevel( Level.OFF );
+        Logger.getLogger( "akka" ).setLevel( Level.OFF );
+        Logger.getLogger( "spark" ).setLevel( Level.OFF );
         JavaSparkContext sc = new JavaSparkContext(conf);
+        Logger.getRootLogger().setLevel( Level.OFF );
+        Logger.getLogger( "org" ).setLevel( Level.OFF );
+        Logger.getLogger( "akka" ).setLevel( Level.OFF );
+        Logger.getLogger( "spark" ).setLevel( Level.OFF );
+        sc.setLogLevel( "FATAL" );
+        
         final int[] dim = new int[]{20, 20};
         final int[] radii1 = new int[]{5, 5};
         final int[] radii2 = new int[]{2, 2};
@@ -159,6 +174,10 @@ public class SparkInterpolationTest implements Serializable {
         NearestNeighbor nnPolicy = new SparkInterpolation.NearestNeighbor();
         NearestNeighborInterpolatorFactory<RealComposite<DoubleType>> nnFactory = new NearestNeighborInterpolatorFactory<>();
         testPolicy(sc, rdd, sourceImg, dim, sourceDim, targetDim, radii1, steps1, radii2, steps2, nnPolicy, nnFactory, 0.0);
+        
+        BiLinear linearPolicy = new SparkInterpolation.BiLinear();
+        NLinearInterpolatorFactory<RealComposite<DoubleType>> linearFactory = new NLinearInterpolatorFactory<>();
+        testPolicy(sc, rdd, sourceImg, dim, sourceDim, targetDim, radii1, steps1, radii2, steps2, linearPolicy, linearFactory, 1e-10);
         
         sc.close();
 	}

@@ -110,7 +110,17 @@ public class Utility
 		array[1] = t._2();
 		return array;
 	}
+	
+	public static Tuple2< Double, Double > min( Tuple2< Double, Double > t1, Tuple2< Double, Double > t2 )
+	{
+		return Utility.tuple2( Math.min( t1._1(), t2._1() ), Math.min( t1._2(), t2._2() ) );
+	}
 
+	public static Tuple2< Double, Double > max( Tuple2< Double, Double > t1, Tuple2< Double, Double > t2 )
+	{
+		return Utility.tuple2( Math.max( t1._1(), t2._1() ), Math.max( t1._2(), t2._2() ) );
+	}
+	
 	public static < U, V, W > Tuple3< U, V, W > tuple3( final U u, final V v, final W w )
 	{
 		return new Tuple3< U, V, W >( u, v, w );
