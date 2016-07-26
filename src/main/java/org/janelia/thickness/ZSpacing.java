@@ -114,15 +114,7 @@ public class ZSpacing
 //        matrixGenerator.ensurePersistence();
 //        TolerantNCC tolerantNCC = new TolerantNCC(sectionPairs);
 //        tolerantNCC.ensurePersistence();
-		final JavaPairRDD< Integer, FloatProcessor > sectionsDropWeights = sections.mapToPair( 
-				new PairFunction< Tuple2< Integer, Tuple2< FloatProcessor, FloatProcessor > >, Integer, FloatProcessor >()
-		{
-			@Override
-			public Tuple2< Integer, FloatProcessor > call( final Tuple2< Integer, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
-			{
-				return Utility.tuple2( t._1(), t._2()._1() );
-			}
-		} );
+		final JavaPairRDD< Integer, FloatProcessor > sectionsDropWeights = sections.mapToPair(new DropWeights<>());
 		final SmallerJoinTest generator = new SmallerJoinTest( sc, sectionsDropWeights, scaleOptions.joinStepSize, maxRange, dim, true );
 
 //        new ImageJ();
@@ -278,6 +270,21 @@ public class ZSpacing
 				Math.max( 1, ( int ) Math.ceil( ( dim[ 0 ] - radius[ 0 ] ) * 1.0 / step[ 0 ] ) ),
 				Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - radius[ 1 ] ) * 1.0 / step[ 1 ] ) )
 		};
+	}
+	
+	public static class DropWeights< K, V1, V2 > implements PairFunction< Tuple2< K, Tuple2< V1, V2 > >, K, V1 >
+	{
+
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -2378364940202047703L;
+
+		@Override
+		public Tuple2<K, V1> call(Tuple2<K, Tuple2<V1, V2>> t) throws Exception {
+			return Utility.tuple2( t._1(), t._2()._1() );
+		}
+		
 	}
 
 }
