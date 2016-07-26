@@ -58,28 +58,12 @@ public class ZSpacing
 		final int stop = scaleOptions.stop;
 		final int size = stop - start;
 
-		final ArrayList< Integer > indices = Utility.arange( size );
-
-		@SuppressWarnings("serial")
+		final ArrayList< Integer > indices = Utility.arange( start, stop );
 		final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > sections = sc
 				.parallelize( indices )
-				.mapToPair( new PairFunction< Integer, Integer, Integer >()
-				{
-
-					public Tuple2< Integer, Integer > call( final Integer arg0 ) throws Exception
-					{
-						return Utility.tuple2( arg0, arg0 );
-					}
-				} )
+				.mapToPair( new Utility.Duplicate<>() )
 				.sortByKey()
-				.map( new Function< Tuple2< Integer, Integer >, Integer >()
-				{
-
-					public Integer call( final Tuple2< Integer, Integer > arg0 ) throws Exception
-					{
-						return arg0._1();
-					}
-				} )
+				.map( new Utility.DropValue<>() )
 				.mapToPair( new Utility.LoadFileTupleFromPatternTuple( sourcePattern, maskPattern ) )
 				.mapToPair( new Utility.DownSampleImages< Integer >( imageScaleLevel ) )
 				.cache();

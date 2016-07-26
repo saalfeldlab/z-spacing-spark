@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
@@ -762,15 +763,33 @@ public class Utility
 		return target;
 	}
 
-//    public static class ColumnsToSections implements PairFunction< Tuple2< Tuple2< Integer, Integer >, double[] >, Integer, DPTuple >
-//    {
-//
-//        private final int[] dim;
-//
-//        @Override
-//        public Tuple2<Integer, DPTuple> call(Tuple2<Tuple2<Integer, Integer>, double[]> tuple2Tuple2) throws Exception {
-//            return null;
-//        }
-//    }
+	public static class Duplicate< T > implements PairFunction< T, T, T > {
+
+		/**
+		 *
+		 */
+		private static final long serialVersionUID = -2287251828070115337L;
+
+		@Override
+		public Tuple2<T, T> call(T t) throws Exception {
+			return Utility.tuple2( t, t );
+		}
+
+	}
+
+	public static class DropValue< K, V > implements Function< Tuple2< K, V >, K >
+	{
+
+		/**
+		 *
+		 */
+		private static final long serialVersionUID = -2208916056673976309L;
+
+		@Override
+		public K call(Tuple2<K, V> t) throws Exception {
+			return t._1();
+		}
+
+	}
 
 }
