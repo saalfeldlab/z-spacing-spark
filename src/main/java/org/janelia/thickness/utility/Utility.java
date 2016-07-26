@@ -65,6 +65,14 @@ public class Utility
 	{
 		return new Tuple2< U, V >( u, v );
 	}
+	
+	public static Tuple2< Integer, Integer > tuple2( int[] arr ) {
+		return Utility.tuple2( arr[0], arr[1] );
+	}
+	
+	public static Tuple2< Long, Long > tuple2( long[] arr ) {
+		return Utility.tuple2( arr[0], arr[1] );
+	}
 
 	public static < U, V, W > Tuple3< U, V, W > tuple3( final U u, final V v, final W w )
 	{
