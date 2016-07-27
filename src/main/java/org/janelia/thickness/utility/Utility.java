@@ -801,5 +801,38 @@ public class Utility
 		}
 
 	}
+	
+	
+
+
+    /**
+     * 
+     * Accept all entries with an integer key k: start &lt;= k &lt; stop
+     * 
+     * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+     *
+     * @param <V> value
+     */
+    public static class FilterRange< V > implements Function<Tuple2< Integer, V>, Boolean >
+    {
+
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -2112302031715609728L;
+		private final long start;
+        private final long stop;
+
+        public FilterRange(long start, long stop) {
+            this.start = start;
+            this.stop = stop;
+        }
+
+        @Override
+        public Boolean call(Tuple2< Integer, V > t) throws Exception {
+            int unboxed = t._1().intValue();
+            return unboxed >= start && unboxed < stop;
+        }
+    }
 
 }
