@@ -1,4 +1,4 @@
-package org.janelia.thickness;
+package org.janelia.thickness.similarity;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,7 +9,9 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.similarity.MatrixGenerationFromImagePairs;
+import org.janelia.thickness.JoinFromList;
+import org.janelia.thickness.KryoSerialization;
+import org.janelia.thickness.KryoSerialization.Registrator;
 import org.janelia.thickness.utility.Utility;
 
 import ij.ImageJ;

@@ -13,6 +13,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.experiments.Render;
 import org.janelia.thickness.inference.Options;
+import org.janelia.thickness.similarity.ComputeMatricesChunked;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
 
