@@ -1,4 +1,4 @@
-package org.janelia.thickness;
+package org.janelia.thickness.similarity;
 
 import ij.process.FloatProcessor;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -8,6 +8,8 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
+import org.janelia.thickness.BlockCoordinates;
+import org.janelia.thickness.BlockCoordinates.Coordinate;
 import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 

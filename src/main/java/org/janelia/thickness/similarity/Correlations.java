@@ -1,4 +1,4 @@
-package org.janelia.thickness;
+package org.janelia.thickness.similarity;
 
 import ij.ImageJ;
 import ij.ImagePlus;

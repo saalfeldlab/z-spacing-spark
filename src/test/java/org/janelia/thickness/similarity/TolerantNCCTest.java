@@ -1,10 +1,11 @@
-package org.janelia.thickness;
+package org.janelia.thickness.similarity;
 
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
 import java.util.HashMap;
 
+import org.janelia.thickness.similarity.TolerantNCC;
 import org.janelia.thickness.utility.Utility;
 import org.junit.Test;
 
