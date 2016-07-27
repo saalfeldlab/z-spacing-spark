@@ -21,7 +21,7 @@ import scala.Tuple3;
 /**
  * Created by hanslovskyp on 6/10/16.
  */
-public class SmallerJoinTest {
+public class ComputeMatricesChunked {
 
     private final JavaSparkContext sc;
     private final JavaPairRDD< Integer, FloatProcessor > files;
@@ -31,7 +31,7 @@ public class SmallerJoinTest {
     private final int maxRange;
     private final int[] dim;
 
-    public SmallerJoinTest( JavaSparkContext sc, JavaPairRDD< Integer, FloatProcessor > files, int stepSize, int maxRange, int[] dim, boolean ensurePersistence )
+    public ComputeMatricesChunked( JavaSparkContext sc, JavaPairRDD< Integer, FloatProcessor > files, int stepSize, int maxRange, int[] dim, boolean ensurePersistence )
     {
         this.sc = sc;
         this.files = files;
@@ -178,7 +178,7 @@ public class SmallerJoinTest {
 //            System.out.println( k );
 //        System.exit(3);
 
-        SmallerJoinTest test = new SmallerJoinTest(sc, files, stepSize, maxRange, dim, true);
+        ComputeMatricesChunked test = new ComputeMatricesChunked(sc, files, stepSize, maxRange, dim, true);
 
 //        List<Tuple2<Tuple2<Integer, Integer>, FPTuple>> strips = run(sc, files, stepSize, range, stride, correlationBlockRadius, dim).collect();
         List<Tuple2<Tuple2<Integer, Integer>, FloatProcessor>> strips = test.run(range, stride, correlationBlockRadius).collect();

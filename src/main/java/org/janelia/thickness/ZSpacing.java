@@ -114,7 +114,7 @@ public class ZSpacing
 //        TolerantNCC tolerantNCC = new TolerantNCC(sectionPairs);
 //        tolerantNCC.ensurePersistence();
 //		final JavaPairRDD< Integer, FloatProcessor > sectionsDropWeights = sections.mapToPair(new DropWeights<>());
-		final SmallerJoinTest generator = new SmallerJoinTest( sc, sections, scaleOptions.joinStepSize, maxRange, dim, true );
+		final ComputeMatricesChunked generator = new ComputeMatricesChunked( sc, sections, scaleOptions.joinStepSize, maxRange, dim, true );
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
