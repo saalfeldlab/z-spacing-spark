@@ -48,7 +48,6 @@ public class ComputeMatricesChunkedTest implements Serializable {
 				.setMaster("local[1]")
 				.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 				.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
-				.set("spark.kryo.registrationRequired", "true")
 				;
         JavaSparkContext sc = new JavaSparkContext(conf);
         final String pattern = "/groups/saalfeld/saalfeldlab/FROM_TIER2/hanslovskyp/flyem/data/Z0115-22_Sec27/align1/Thick/image.%05d.png";

@@ -15,7 +15,6 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
 import ij.process.FloatProcessor;
-import scala.collection.mutable.WrappedArray;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
@@ -36,12 +35,11 @@ public class KryoSerialization {
 			kryo.register( FloatProcessor.class, new FloatProcessorSerializer() );
 			kryo.register( DPTuple.class );
 			kryo.register( String.class );
-			kryo.register( WrappedArray.ofRef.class );
-			kryo.register( Object[].class );
 			kryo.register( HashMap.class );
 			kryo.register( ArrayList.class );
 			kryo.register( BlockCoordinates.class );
 			kryo.register( BlockCoordinates.Coordinate.class );
+			kryo.register( double[].class );
 		}
 	}
 	
