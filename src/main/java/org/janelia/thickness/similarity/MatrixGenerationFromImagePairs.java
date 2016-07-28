@@ -143,7 +143,12 @@ public class MatrixGenerationFromImagePairs {
     public static class ExchangeIndexOrder implements PairFlatMapFunction<
             Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>,
             Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = -6042060930096104068L;
+
+		@Override
         public Iterable<Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>>
         call(Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> t) throws Exception {
             // z coordinate of sections
