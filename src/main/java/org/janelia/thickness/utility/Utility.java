@@ -250,6 +250,7 @@ public class Utility
 
 		private final String outputFormat;
 
+		@SuppressWarnings("unused")
 		private final ConvertImageProcessor.TYPE ipType;
 
 		public WriteToFormatString( final String outputFormat )
@@ -512,23 +513,6 @@ public class Utility
 		{
 			m1.putAll( m2 );
 			return m1;
-		}
-	}
-
-	public static class Format< K > implements PairFunction< K, K, String >
-	{
-
-		private final String pattern;
-
-		public Format( final String pattern )
-		{
-			this.pattern = pattern;
-		}
-
-		@Override
-		public Tuple2< K, String > call( final K k ) throws Exception
-		{
-			return Utility.tuple2( k, String.format( pattern, k ) );
 		}
 	}
 
