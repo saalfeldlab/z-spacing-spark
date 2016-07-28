@@ -15,6 +15,9 @@ import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.similarity.ComputeMatricesChunked;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
+import org.kohsuke.args4j.Argument;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
@@ -30,24 +33,47 @@ import scala.Tuple2;
  */
 public class ZSpacing
 {
+	
+	private static class Parameters {
+		
+		@Argument( metaVar = "CONFIG_PATH" )
+		private String configPath;
+		
+		private boolean parsedSuccessfully;
+	}
 
 	public static void main( final String[] args ) throws FormatException, IOException
 	{
-		final SparkConf conf = new SparkConf()
-				.setAppName( "ZSpacing" )
-				.set( "spark.network.timeout", "600" )
-				.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-				.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
-				;
+		
+		Parameters p = new Parameters();
+		CmdLineParser parser = new CmdLineParser( p );
+    	try {
+			parser.parseArgument(args);
+			p.parsedSuccessfully = true;
+		} catch (CmdLineException e) {
+            // handling of wrong arguments
+			System.err.println(e.getMessage());
+			parser.printUsage(System.err);
+			p.parsedSuccessfully = false;
+		}
 
-		final JavaSparkContext sc = new JavaSparkContext( conf );
+        if ( p.parsedSuccessfully )
 
-		final String scaleOptionsPath = args[ 0 ];
-		final ScaleOptions scaleOptions = ScaleOptions.createFromFile( scaleOptionsPath );
-
-		run( sc, scaleOptions );
-
-		sc.close();
+        {
+			final SparkConf conf = new SparkConf()
+					.setAppName( "ZSpacing" )
+					.set( "spark.network.timeout", "600" )
+					.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+					.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+					;
+	
+			final JavaSparkContext sc = new JavaSparkContext( conf );
+			final ScaleOptions scaleOptions = ScaleOptions.createFromFile( p.configPath );
+	
+			run( sc, scaleOptions );
+	
+			sc.close();
+        }
 
 	}
 
