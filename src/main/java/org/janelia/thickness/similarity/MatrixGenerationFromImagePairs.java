@@ -1,6 +1,10 @@
 package org.janelia.thickness.similarity;
 
-import ij.process.FloatProcessor;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
@@ -9,14 +13,10 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.BlockCoordinates;
-import org.janelia.thickness.BlockCoordinates.Coordinate;
 import org.janelia.thickness.utility.Utility;
-import scala.Tuple2;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import ij.process.FloatProcessor;
+import scala.Tuple2;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
