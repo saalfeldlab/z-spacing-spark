@@ -1,15 +1,16 @@
 package org.janelia.thickness.similarity;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
-import java.util.Arrays;
 import java.util.HashMap;
 
-import org.janelia.thickness.similarity.TolerantNCC;
 import org.janelia.thickness.utility.Utility;
 import org.junit.Test;
 
-import ij.ImageJ;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import mpicbg.ij.integral.BlockPMCC;
