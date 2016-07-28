@@ -722,5 +722,26 @@ public class Utility
             return Utility.tuple2( t._1(), inverse );
         }
     }
+    
+    
+    public static class AddOffsetToKey< V > implements PairFunction< Tuple2< Integer, V >, Integer, V > {
+    	
+    	/**
+		 * 
+		 */
+		private static final long serialVersionUID = 4422574591898855269L;
+		private final int offset;
+
+		public AddOffsetToKey(int offset) {
+			super();
+			this.offset = offset;
+		}
+
+		@Override
+		public Tuple2<Integer, V> call(Tuple2<Integer, V> t) throws Exception {
+			return Utility.tuple2( t._1() + offset, t._2() );
+		}
+    	
+    }
 
 }
