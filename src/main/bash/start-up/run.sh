@@ -3,7 +3,7 @@
 ROOT_DIR=$(dirname `readlink -f $0`)
 FLINTSTONE=$HOME/flintstone/flintstone.sh
 N_NODES=$1
-JAR=${JAR:-$HOME/z_spacing-spark-scala-1.0.0-SNAPSHOT.jar}
+JAR=${JAR:-$HOME/z-spacing-spark-scala-1.0.0-SNAPSHOT.jar}
 CLASS=org.janelia.thickness.ZSpacing
 CONFIG=$ROOT_DIR/config.json
 SCALE=0
