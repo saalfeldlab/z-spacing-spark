@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * @author hanslovskyp
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class Chunk implements Serializable {
 
