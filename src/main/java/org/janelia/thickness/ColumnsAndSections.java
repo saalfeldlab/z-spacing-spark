@@ -13,7 +13,7 @@ import scala.Tuple2;
 import java.util.*;
 
 /**
- * Created by hanslovskyp on 9/28/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class ColumnsAndSections {
 
@@ -55,44 +55,12 @@ public class ColumnsAndSections {
 
         JavaPairRDD<Integer, HashMap<Tuple2<Integer, Integer>, Double>> joined = xyToZMap.reduceByKey(
                 new Joiner< Tuple2<Integer, Integer >, Double, HashMap< Tuple2<Integer,Integer >, Double > >()
-//                new Function2<HashMap<Tuple2<Integer, Integer>, Double>, HashMap<Tuple2<Integer, Integer>, Double>, HashMap<Tuple2<Integer, Integer>, Double>>() {
-//                    @Override
-//                    public HashMap<Tuple2<Integer, Integer>, Double> call(
-//                            HashMap<Tuple2<Integer, Integer>, Double> hm1,
-//                            HashMap<Tuple2<Integer, Integer>, Double> hm2) throws Exception {
-//                        HashMap<Tuple2<Integer, Integer>, Double> hm = new HashMap<Tuple2<Integer, Integer>, Double>();
-//                        hm.putAll(hm1);
-//                        hm.putAll(hm2);
-//                        return hm;
-//                    }
-//                }
         );
 
         JavaPairRDD<Integer, DPTuple> imgs = joined
                 .mapToPair(new ConvertToImages(dim)
                 );
 
-//        JavaPairRDD<Integer, DPTuple> joined = xyToZMap.aggregateByKey(
-//                new DPTuple(dim[0], dim[1]),
-//                new Function2<DPTuple, HashMap<Tuple2<Integer, Integer>, Double>, DPTuple>() {
-//
-//                    @Override
-//                    public DPTuple call(DPTuple img, HashMap<Tuple2<Integer, Integer>, Double> hm) throws Exception {
-//                        for (Map.Entry<Tuple2<Integer, Integer>, Double> entry : hm.entrySet()) {
-//                            Tuple2<Integer, Integer> xy = entry.getKey();
-//                            img.pixels[ xyToLinear( img.width, xy._1(), xy._2() ) ] = entry.getValue();
-//                        }
-//                        return img;
-//                    }
-//                },
-//                new Function2<DPTuple, DPTuple, DPTuple>() {
-//
-//                    @Override
-//                    public DPTuple call(DPTuple dpTuple, DPTuple dpTuple2) throws Exception {
-//                        return null;
-//                    }
-//                }
-//        );
         return imgs;
     }
 
@@ -156,8 +124,6 @@ public class ColumnsAndSections {
 			M result = (M)m1.getClass().newInstance();
             result.putAll( m1 );
             result.putAll(m2);
-//            String logString = StringUtils.join(m1) + StringUtils.join(m2) + StringUtils.join(result);
-//            System.out.println( logString );
             return result;
         }
     }
@@ -198,15 +164,6 @@ public class ColumnsAndSections {
         JavaPairRDD<Tuple2<Integer, Integer>, HashMap<Integer, Double>> joined = xyToZMap
                 .reduceByKey(
                         new Joiner< Integer, Double, HashMap< Integer, Double > >()
-//                        new Function2<HashMap<Integer, Double>, HashMap<Integer, Double>, HashMap<Integer, Double>>() {
-//                    @Override
-//                    public HashMap<Integer, Double> call(HashMap<Integer, Double> hm1, HashMap<Integer, Double> hm2) throws Exception {
-//                        HashMap<Integer, Double> hm = new HashMap<Integer, Double>();
-//                        hm.putAll(hm1);
-//                        hm.putAll(hm2);
-//                        return hm;
-//                    }
-//                }
                 )
                 .cache()
                 ;
