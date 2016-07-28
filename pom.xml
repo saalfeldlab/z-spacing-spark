@@ -1,159 +1,159 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <groupId>saalfeldlab</groupId>
-    <artifactId>z-spacing-spark</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <inceptionYear>2015</inceptionYear>
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>saalfeldlab</groupId>
+	<artifactId>z-spacing-spark</artifactId>
+	<version>1.0.0-SNAPSHOT</version>
+	<inceptionYear>2015</inceptionYear>
 
-    <repositories>
-        <!-- NB: for project parent -->
-        <repository>
-            <id>imagej.public</id>
-            <url>http://maven.imagej.net/content/groups/public</url>
-        </repository>
-    </repositories>
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
 
-    <parent>
-        <groupId>sc.fiji</groupId>
-        <artifactId>pom-fiji</artifactId>
-        <version>24.1.0</version>
-        <relativePath/>
-    </parent>
+	<parent>
+		<groupId>sc.fiji</groupId>
+		<artifactId>pom-fiji</artifactId>
+		<version>24.1.0</version>
+		<relativePath />
+	</parent>
 
-    <dependencies>
-        <dependency>
-            <groupId>saalfeldlab</groupId>
-            <artifactId>z_spacing</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.3.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.10</artifactId>
-            <version>1.6.1</version>
-            <scope>provided</scope> <!-- provided!! test so we can run tests -->
-        </dependency>
-        <dependency>
-            <groupId>net.imglib2</groupId>
-            <artifactId>imglib2-algorithm</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>net.imglib2</groupId>
-            <artifactId>imglib2</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>net.imglib2</groupId>
-            <artifactId>imglib2-realtransform</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>net.imagej</groupId>
-            <artifactId>ij</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>mpicbg</groupId>
-            <artifactId>mpicbg</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>saalfeldlab</groupId>
-            <artifactId>similarities</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-        </dependency>
-        <dependency>
-        	<groupId>args4j</groupId>
-        	<artifactId>args4j</artifactId>
-        	<version>2.33</version>
-        </dependency>
-    </dependencies>
+	<dependencies>
+		<dependency>
+			<groupId>saalfeldlab</groupId>
+			<artifactId>z_spacing</artifactId>
+			<version>1.0.0-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.3.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.spark</groupId>
+			<artifactId>spark-core_2.10</artifactId>
+			<version>1.6.1</version>
+			<scope>provided</scope> <!-- provided!! test so we can run tests -->
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-algorithm</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-realtransform</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>ij</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>mpicbg</groupId>
+			<artifactId>mpicbg</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>saalfeldlab</groupId>
+			<artifactId>similarities</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>args4j</groupId>
+			<artifactId>args4j</artifactId>
+			<version>2.33</version>
+		</dependency>
+	</dependencies>
 
-    <!-- Run mvn <goal> -DskipTests=false to run tests -->
+	<!-- Run mvn <goal> -DskipTests=false to run tests -->
 	<properties>
 		<skipTests>true</skipTests>
 	</properties>
 
-    <build>
-        <plugins>
-            <!-- Maven shade for Uber Jar -->
-            <!-- https://maven.apache.org/plugins/maven-shade-plugin/shade-mojo.html -->
-            <!-- https://databricks.gitbooks.io/databricks-spark-knowledge-base/content/troubleshooting/missing_dependencies_in_jar_files.html -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>2.4.1</version>
-                <configuration>
-                    <!-- Do not minimize for now to speed up packaging.-->
-                    <!--<minimizeJar>true</minimizeJar>-->
-                    <filters>
-                        <filter>
-                            <artifact>*:*</artifact>
-                            <excludes>
-                                <exclude>META-INF/*.SF</exclude>
-                                <exclude>META-INF/*.DSA</exclude>
-                                <exclude>META-INF/*.RSA</exclude>
-                            </excludes>
-                        </filter>
-                    </filters>
-                    <!-- Additional configuration. -->
-                </configuration>
-                <!-- binds by default to package phase -->
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer
-                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>org.janelia.thickness.ZSpacing</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+	<build>
+		<plugins>
+			<!-- Maven shade for Uber Jar -->
+			<!-- https://maven.apache.org/plugins/maven-shade-plugin/shade-mojo.html -->
+			<!-- https://databricks.gitbooks.io/databricks-spark-knowledge-base/content/troubleshooting/missing_dependencies_in_jar_files.html -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>2.4.1</version>
+				<configuration>
+					<!-- Do not minimize for now to speed up packaging. -->
+					<!--<minimizeJar>true</minimizeJar> -->
+					<filters>
+						<filter>
+							<artifact>*:*</artifact>
+							<excludes>
+								<exclude>META-INF/*.SF</exclude>
+								<exclude>META-INF/*.DSA</exclude>
+								<exclude>META-INF/*.RSA</exclude>
+							</excludes>
+						</filter>
+					</filters>
+					<!-- Additional configuration. -->
+				</configuration>
+				<!-- binds by default to package phase -->
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<transformers>
+								<transformer
+									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+									<mainClass>org.janelia.thickness.ZSpacing</mainClass>
+								</transformer>
+							</transformers>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-enforcer-plugin</artifactId>
-                <configuration>
-                    <!-- Don't fail on duplicate classes. -->
-                    <fail>false</fail>
-                </configuration>
-            </plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<configuration>
+					<!-- Don't fail on duplicate classes. -->
+					<fail>false</fail>
+				</configuration>
+			</plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
-                </configuration>
-            </plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>1.8</source>
+					<target>1.8</target>
+				</configuration>
+			</plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-javadoc-plugin</artifactId>
-                <configuration>
-                    <failOnError>false</failOnError>
-                    <additionalparam>-Xdoclint:none</additionalparam>
-                </configuration>
-            </plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<failOnError>false</failOnError>
+					<additionalparam>-Xdoclint:none</additionalparam>
+				</configuration>
+			</plugin>
 
-            <plugin>
+			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
@@ -161,7 +161,7 @@
 				</configuration>
 			</plugin>
 
-        </plugins>
-    </build>
-    <!-- Maven shade end-->
+		</plugins>
+	</build>
+	<!-- Maven shade end -->
 </project>
