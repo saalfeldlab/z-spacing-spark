@@ -45,7 +45,7 @@ import scala.Tuple2;
  */
 public class SparkRender {
 	
-	public static class Options {
+	private static class Options {
 		
 		@Argument( metaVar = "CONFIG_PATH", index = 0 )
 		private String configPath;
