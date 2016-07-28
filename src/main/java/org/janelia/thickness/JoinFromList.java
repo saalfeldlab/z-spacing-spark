@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Created by hanslovskyp on 9/24/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class JoinFromList {
 
@@ -40,17 +40,19 @@ public class JoinFromList {
     }
 
     /**
+     * 
+     * Add association A to value V at appropriate key K 
      *
-     * rdd in:  ( T -> U )
-     * map M:   { T -> V1 }
-     * rdd out: ( TU -> U,V1 )
+     * rdd in:  ( K -> V )
+     * map M:   { K -> A }
+     * rdd out: ( K -> V,A )
      *
-     * @param <T>
-     * @param <U>
+     * @param <K>
      * @param <V>
+     * @param <A>
      * @param <M>
      */
-    public static class AssociateWith< T, U, V, M extends Map< T, V > > implements PairFunction< Tuple2< T,U >, T, Tuple2< U, V > >
+    public static class AssociateWith< K, V, A, M extends Map< K, A > > implements PairFunction< Tuple2< K,V >, K, Tuple2< V, A > >
     {
 
         private final Broadcast< M > keysAndValues;
@@ -62,13 +64,15 @@ public class JoinFromList {
 
         private static final long serialVersionUID = 6199058917722338402L;
 
-        public Tuple2< T, Tuple2< U,V > > call(Tuple2<T, U> t) throws Exception {
-            T key = t._1();
+        public Tuple2< K, Tuple2< V,A > > call(Tuple2<K, V> t) throws Exception {
+            K key = t._1();
             return Utility.tuple2( key, Utility.tuple2(t._2(), keysAndValues.getValue().get(key)) );
         }
     }
 
     /**
+     * 
+     * Make first value part of key.
      *
      * rdd in:  ( K1 -> V1,V2 )
      * rdd out: ( K1,V1 -> V2 )
@@ -94,34 +98,36 @@ public class JoinFromList {
 
     /**
      *
+     * Flatten PairRDD that stores pairs of key and Iterable<V>  into pairs of key and V 
+     *
      * rdd in:  ( T -> [U] )
      * rdd out: ( T -> U )
      *
-     * @param <T>
-     * @param <U>
-     * @param <L>
+     * @param <K>
+     * @param <V>
+     * @param <I>
      */
-    public static class FlatOut< T, U, L extends Iterable< U > > implements PairFlatMapFunction< Tuple2< T, L >, T, U >
+    public static class FlatOut< K, V, I extends Iterable< V > > implements PairFlatMapFunction< Tuple2< K, I >, K, V >
     {
 
-        class MyIterator implements Iterator<Tuple2<T, U>>
+        class FlatteningIterator implements Iterator<Tuple2<K, V>>
         {
 
-            private final Iterator< U > it;
-            public MyIterator(Iterator<U> it, T constant) {
+            private final Iterator< V > it;
+            public FlatteningIterator(Iterator<V> it, K constant) {
                 super();
                 this.it = it;
                 this.constant = constant;
             }
 
-            private final T constant;
+            private final K constant;
 
 
             public boolean hasNext() {
                 return it.hasNext();
             }
 
-            public Tuple2<T, U> next() {
+            public Tuple2<K, V> next() {
                 return Utility.tuple2( constant, it.next() );
             }
 
@@ -134,10 +140,10 @@ public class JoinFromList {
 
         private static final long serialVersionUID = -6076962646695402045L;
 
-        public Iterable<Tuple2<T, U>> call( final Tuple2<T, L > t ) throws Exception {
-            Iterable<Tuple2<T, U>> iterable = new Iterable<Tuple2<T, U>>() {
-                public Iterator<Tuple2<T, U>> iterator() {
-                    return new MyIterator( t._2().iterator(), t._1() );
+        public Iterable<Tuple2<K, V>> call( final Tuple2<K, I > t ) throws Exception {
+            Iterable<Tuple2<K, V>> iterable = new Iterable<Tuple2<K, V>>() {
+                public Iterator<Tuple2<K, V>> iterator() {
+                    return new FlatteningIterator( t._2().iterator(), t._1() );
                 }
 
             };
@@ -153,6 +159,8 @@ public class JoinFromList {
 		private static final long serialVersionUID = 6750532985494792621L;}
 
     /**
+     * 
+     * Rearrange RDD such that both keys form a pair and both values form a separate pair.
      *
      * rdd in:  ( K1 -> (K2,V2),V2 )
      * rdd out: ( K1,K2 -> V1,V2 )
