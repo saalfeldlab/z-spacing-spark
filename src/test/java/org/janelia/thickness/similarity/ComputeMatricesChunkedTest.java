@@ -43,19 +43,19 @@ public class ComputeMatricesChunkedTest implements Serializable {
 	@Test
 	public void test() throws InterruptedException, ExecutionException {
 		SparkConf conf = new SparkConf()
-        		.setAppName("Smaller Joins!")
-        		.setMaster("local[*]")
-        		.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-        		.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
-        		;
+				.setAppName("Smaller Joins!")
+				// Only use one CPU. Spark overhead kills test with heap growing bigger than 512MB if using all CPUs.
+				.setMaster("local[1]")
+				.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+				.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
+				;
         JavaSparkContext sc = new JavaSparkContext(conf);
         final String pattern = "/groups/saalfeld/saalfeldlab/FROM_TIER2/hanslovskyp/flyem/data/Z0115-22_Sec27/align1/Thick/image.%05d.png";
         final int start = 3750;
-        final int size = 200;
+        final int size = 80;
         final int stop = start + size;
-        final int scaleLevel = 4;
-        final int stepSize = 50;
-        final int maxRange = 20;
+        final int scaleLevel = 3;
+        final int stepSize = 30;
         final int range = 15;
         ImagePlus firstImp = new ImagePlus( String.format( pattern, start ) );
         final int w = firstImp.getWidth();
@@ -81,7 +81,7 @@ public class ComputeMatricesChunkedTest implements Serializable {
         for ( final Tuple2< Integer, FloatProcessor > indexedFp : files.collect() )
         	stack[ indexedFp._1() ] = indexedFp._2();
 
-        ComputeMatricesChunked test = new ComputeMatricesChunked(sc, files, stepSize, maxRange, dim, true);
+        ComputeMatricesChunked test = new ComputeMatricesChunked(sc, files, stepSize, range, dim, true);
 
         Map<Tuple2<Integer, Integer>, FloatProcessor> strips = 
         		test.run(range, stride, radius).collectAsMap();
@@ -153,7 +153,7 @@ public class ComputeMatricesChunkedTest implements Serializable {
         			if ( Float.isNaN( ref ) )
         				Assert.assertTrue( Float.isNaN( comp ) );
         			else
-        				Assert.assertEquals( ref, comp, 1e-7f );
+        				Assert.assertEquals( ref, comp, 1e-6f );
         			
         		}
         		
