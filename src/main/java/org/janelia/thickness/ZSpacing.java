@@ -11,7 +11,6 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.experiments.Render;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.similarity.ComputeMatricesChunked;
 import org.janelia.thickness.utility.DPTuple;
@@ -204,7 +203,7 @@ public class ZSpacing
 			final JavaPairRDD< Integer, DPTuple > coordinateSections = columnsAndSections.columnsToSections( sc, result );
 
 			coordinates = columnsAndSections.sectionsToColumns( sc, coordinateSections );
-			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).cache();
+			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = coordinates.mapToPair( new Utility.InvertLut<>() );
 			final JavaPairRDD< Integer, DPTuple > backwardImages = columnsAndSections.columnsToSections( sc, backward );
 
 			final String outputFormat = String.format( outputFolder, i ) + "/forward/%04d.tif";

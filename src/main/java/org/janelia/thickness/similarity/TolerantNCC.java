@@ -80,7 +80,7 @@ public class TolerantNCC {
 
 
         JavaPairRDD<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>> averagesIndexedByXYTuples = flatAverages
-                .mapToPair(new Utility.Swap<Tuple2<Integer, Integer>, Tuple2<Integer, Integer>, Double>())
+                .mapToPair(new Utility.SwapKeyKey<Tuple2<Integer, Integer>, Tuple2<Integer, Integer>, Double>())
                 .mapToPair( new Utility.ValueAsMap<Tuple2<Integer,Integer>,Tuple2<Integer,Integer>,Double>())
                 .cache()
                 ;

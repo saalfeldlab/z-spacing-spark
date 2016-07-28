@@ -17,6 +17,7 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.lut.LUTRealTransform;
+import org.janelia.thickness.lut.SingleDimensionLUTRealTransform;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
 
 import ij.ImagePlus;
@@ -236,42 +237,23 @@ public class Utility
 	}
 
 	/**
-	 * rdd in: ( K -> G,V ) rdd out: ( G -> K,V )
+	 * swap keys K1, K2 for key K1 pointing to a key-value pair K2, V 
 	 * 
-	 * @param <K>
-	 * @param <G>
+	 * rdd in: ( K1 -> K2,V ) rdd out: ( K2 -> K1,V )
+	 * 
+	 * @param <K1>
+	 * @param <K2>
 	 * @param <V>
 	 */
-	public static class Swap< K, G, V > implements PairFunction< Tuple2< K, Tuple2< G, V > >, G, Tuple2< K, V > >
+	public static class SwapKeyKey< K1, K2, V > implements PairFunction< Tuple2< K1, Tuple2< K2, V > >, K2, Tuple2< K1, V > >
 	{
 		private static final long serialVersionUID = -4848162685420711301L;
 
-		public Tuple2< G, Tuple2< K, V > > call( final Tuple2< K, Tuple2< G, V > > t )
+		public Tuple2< K2, Tuple2< K1, V > > call( final Tuple2< K1, Tuple2< K2, V > > t )
 				throws Exception
 		{
-			final Tuple2< G, V > t2 = t._2();
+			final Tuple2< K2, V > t2 = t._2();
 			return Utility.tuple2( t2._1(), Utility.tuple2( t._1(), t2._2() ) );
-		}
-	}
-
-	public static class FileListOpener implements PairFunction< Integer, Integer, FloatProcessor[] >
-	{
-		private final String[] formats;
-
-		public FileListOpener( final String[] formats )
-		{
-			this.formats = formats;
-		}
-
-		@Override
-		public Tuple2< Integer, FloatProcessor[] > call( final Integer index ) throws Exception
-		{
-			final FloatProcessor[] images = new FloatProcessor[ formats.length ];
-			for ( int i = 0; i < formats.length; ++i )
-			{
-				images[ i ] = new ImagePlus( String.format( formats[ i ], index ) ).getProcessor().convertToFloatProcessor();
-			}
-			return Utility.tuple2( index, images );
 		}
 	}
 
@@ -361,65 +343,6 @@ public class Utility
 
 	}
 
-	public static class DownSampleImages< K > 
-	implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > >, K, Tuple2< FloatProcessor, FloatProcessor > >
-	{
-
-		private final int sampleScale;
-
-		/**
-		 * @param sampleScale
-		 */
-		public DownSampleImages( final int sampleScale )
-		{
-			super();
-			this.sampleScale = sampleScale;
-		}
-
-		private static final long serialVersionUID = -8634964011671381854L;
-
-		@Override
-		public Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > > call(
-				final Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > > indexedFloatProcessorTuple ) throws Exception
-		{
-			final FloatProcessor downsampled =
-					( FloatProcessor ) Downsampler.downsampleImageProcessor( indexedFloatProcessorTuple._2()._1(), sampleScale );
-			final FloatProcessor downsampledMask =
-					( FloatProcessor ) Downsampler.downsampleImageProcessor( indexedFloatProcessorTuple._2()._2(), sampleScale );
-			return Utility.tuple2( indexedFloatProcessorTuple._1(), Utility.tuple2( downsampled, downsampledMask ) );
-		}
-
-	}
-
-	public static class GaussianBlur< K > implements PairFunction< Tuple2< K, FloatProcessor >, K, FloatProcessor >
-	{
-
-		private final double[] sigma;
-
-		public GaussianBlur( final double[] sigma )
-		{
-			this.sigma = sigma;
-		}
-
-		public GaussianBlur( final double sigmaX, final double sigmaY )
-		{
-			this( new double[] { sigmaX, sigmaY } );
-		}
-
-		public GaussianBlur( final double sigma )
-		{
-			this( sigma, sigma );
-		}
-
-		@Override
-		public Tuple2< K, FloatProcessor > call( final Tuple2< K, FloatProcessor > t ) throws Exception
-		{
-			final FloatProcessor fp = ( FloatProcessor ) t._2().duplicate();
-			new ij.plugin.filter.GaussianBlur().blurFloat( fp, sigma[ 0 ], sigma[ 1 ], 1e-4 );
-			return Utility.tuple2( t._1(), fp );
-		}
-	}
-
 	public static int xyToLinear( final int width, final int x, final int y )
 	{
 		return width * y + x;
@@ -435,6 +358,11 @@ public class Utility
 	// takes backward transform from source to target
 	public static class Transform< K > implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, double[] > >, K, FloatProcessor >
 	{
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -7333177858409257925L;
+
 		@Override
 		public Tuple2< K, FloatProcessor > call( final Tuple2< K, Tuple2< FloatProcessor, double[] > > t ) throws Exception
 		{
@@ -463,6 +391,11 @@ public class Utility
 
 	public static class FlatmapMap< K1, K2, V, M extends Map< K2, V > > implements PairFlatMapFunction< Tuple2< K1, M >, K1, Tuple2< K2, V > >
 	{
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 5871607022107221948L;
+
 		@Override
 		public Iterable< Tuple2< K1, Tuple2< K2, V > > > call( final Tuple2< K1, M > t ) throws Exception
 		{
@@ -470,18 +403,13 @@ public class Utility
 		}
 	}
 
-	public static class EntryToTuple< K, V1, V2, E extends Map.Entry< V1, V2 > > implements PairFunction< Tuple2< K, E >, K, Tuple2< V1, V2 > >
-	{
-
-		@Override
-		public Tuple2< K, Tuple2< V1, V2 > > call( final Tuple2< K, E > t ) throws Exception
-		{
-			return Utility.tuple2( t._1(), Utility.tuple2( t._2().getKey(), t._2().getValue() ) );
-		}
-	}
-
 	public static class IterableWithConstKeyFromMap< K1, K2, V > implements Iterable< Tuple2< K1, Tuple2< K2, V > > >, Serializable
 	{
+
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 144940735137963745L;
 
 		private final K1 k;
 
@@ -524,6 +452,11 @@ public class Utility
 	public static class IterableWithConstKey< K, V > implements Iterable< Tuple2< K, V > >, Serializable
 	{
 
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -1483858948362400784L;
+
 		private final K key;
 
 		private final Iterable< V > iterable;
@@ -565,6 +498,11 @@ public class Utility
 	public static class ValueAsMap< K1, K2, V > implements PairFunction< Tuple2< K1, Tuple2< K2, V > >, K1, HashMap< K2, V > >
 	{
 
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -6733180103222389437L;
+
 		@Override
 		public Tuple2< K1, HashMap< K2, V > > call( final Tuple2< K1, Tuple2< K2, V > > t ) throws Exception
 		{
@@ -577,27 +515,17 @@ public class Utility
 	public static class ReduceMapsByUnion< K, V, M extends Map< K, V > > implements Function2< M, M, M >
 	{
 
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -1493458715879120485L;
+
 		@Override
 		public M call( final M m1, final M m2 ) throws Exception
 		{
 			m1.putAll( m2 );
 			return m1;
 		}
-	}
-
-//    public static class SwapMultiKey<K1,K2,V> implements PairFunction<Tuple2<K1,Tuple2<K2,V>>,K2,Tuple2<K1,V>>
-//    {
-//
-//        @Override
-//        public Tuple2<K2, Tuple2<K1, V>> call(Tuple2<K1, Tuple2<K2, V>> t) throws Exception {
-//            return Utility.tuple2( t._2()._1(), Utility.tuple2( t._1(), t._2()._2() ) );
-//        }
-//    }
-
-	public static void main( final String[] args )
-	{
-		final SparkConf conf = new SparkConf().setAppName( "BLA" ).setMaster( "local" );
-		final JavaSparkContext sc = new JavaSparkContext( conf );
 	}
 
 	public static class Format< K > implements PairFunction< K, K, String >
@@ -620,6 +548,10 @@ public class Utility
 	public static class LoadFileFromPattern implements PairFunction< Integer, Integer, FloatProcessor >
 	{
 
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 3090174862493622888L;
 		private final String pattern;
 
 		public LoadFileFromPattern( final String pattern )
@@ -633,46 +565,6 @@ public class Utility
 			final String path = String.format( pattern, k.intValue() );
 			final FloatProcessor fp = new ImagePlus( path ).getProcessor().convertToFloatProcessor();
 			return Utility.tuple2( k, fp );
-		}
-	}
-
-	public static class LoadFileTupleFromPatternTuple
-	implements PairFunction< Integer, Integer, Tuple2< FloatProcessor, FloatProcessor > >
-	{
-
-		private final Tuple2< String, String > patternTuple;
-
-		public LoadFileTupleFromPatternTuple( final String p1, final String p2 )
-		{
-			this( Utility.tuple2( p1, p2 ) );
-		}
-
-		public LoadFileTupleFromPatternTuple( final Tuple2< String, String > patternTuple )
-		{
-			this.patternTuple = patternTuple;
-		}
-
-		@Override
-		public Tuple2< Integer, Tuple2< FloatProcessor, FloatProcessor > > call( final Integer k ) throws Exception
-		{
-			final String path = String.format( patternTuple._1(), k.intValue() );
-			final FloatProcessor fp = new ImagePlus( path ).getProcessor().convertToFloatProcessor();
-			final FloatProcessor fpMask = generateMask( patternTuple._2(), k.intValue(), fp );
-			return Utility.tuple2( k, Utility.tuple2( fp, fpMask ) );
-		}
-
-		public static FloatProcessor generateMask( final String pattern, final int z, final FloatProcessor image )
-		{
-			if ( pattern.isEmpty() )
-			{
-				final FloatProcessor result = new FloatProcessor( image.getWidth(), image.getHeight() );
-				result.add( 1.0 );
-				return result;
-			}
-			else
-			{
-				return new ImagePlus( String.format( pattern, z ) ).getProcessor().convertToFloatProcessor();
-			}
 		}
 	}
 
@@ -725,54 +617,12 @@ public class Utility
 
 	}
 
-	public static < T extends RealType< T > > RandomAccessibleInterval< T > transform(
-			final RandomAccessible< T > source,
-			final RandomAccessibleInterval< T > target,
-			final RandomAccessibleInterval< DoubleType > lut ) throws InterruptedException
-	{
-		final Cursor< RealComposite< DoubleType > > lutCursor = Views.flatIterable( Views.collapseReal( lut ) ).cursor();
-		final ArrayList< Callable< Void > > callables = new ArrayList< Callable< Void > >();
-		final ExecutorService es = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
-		final long size = lut.dimension( 2 );
-		while ( lutCursor.hasNext() )
-		{
-			lutCursor.fwd();
-			final long x = lutCursor.getLongPosition( 0 );
-			final long y = lutCursor.getLongPosition( 1 );
-			final RealRandomAccessible< T > sourceColumn =
-					Views.interpolate( Views.hyperSlice( Views.hyperSlice( source, 1, y ), 0, x ), new NLinearInterpolatorFactory< T >() );
-			final IntervalView< T > targetColumn = Views.hyperSlice( Views.hyperSlice( target, 1, y ), 0, x );
-			final IntervalView< DoubleType > lutColumn = Views.hyperSlice( Views.hyperSlice( lut, 1, y ), 0, x );
-
-			final IntervalView< T > targetColumn3D = Views.offsetInterval( target, new long[] { x, y, 0 }, new long[] { 1, 1, size } );
-			final IntervalView< DoubleType > lutColumn3D = Views.offsetInterval( lut, new long[] { x, y, 0 }, new long[] { 1, 1, size } );
-			final RealPoint p = new RealPoint( targetColumn3D.numDimensions() );
-
-			final SingleDimensionLUTRealTransformField transform = new SingleDimensionLUTRealTransformField( 3, 3, lutColumn3D );
-			callables.add( new Callable< Void >()
-			{
-				@Override
-				public Void call() throws Exception
-				{
-					final RealRandomAccess< T > ra = sourceColumn.realRandomAccess();
-					final Cursor< T > c = Views.flatIterable( targetColumn3D ).cursor();
-					while ( c.hasNext() )
-					{
-						final T t = c.next();
-						transform.apply( c, p );
-						ra.setPosition( p.getDoublePosition( 2 ), 0 );
-						t.set( ra.get() );
-					}
-					return null;
-				}
-			} );
-		}
-		System.out.println( "Invoking all column jobs." );
-		System.out.flush();
-		es.invokeAll( callables );
-		return target;
-	}
-
+	/**
+	 * Transform RDD into PairRDD with same value as key:
+	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+	 *
+	 * @param <T>
+	 */
 	public static class Duplicate< T > implements PairFunction< T, T, T > {
 
 		/**
@@ -787,6 +637,15 @@ public class Utility
 
 	}
 
+	/**
+	 * 
+	 * Drop value of PairRDD
+	 * 
+	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+	 *
+	 * @param <K>
+	 * @param <V>
+	 */
 	public static class DropValue< K, V > implements Function< Tuple2< K, V >, K >
 	{
 
@@ -801,9 +660,6 @@ public class Utility
 		}
 
 	}
-	
-	
-
 
     /**
      * 
@@ -832,6 +688,38 @@ public class Utility
         public Boolean call(Tuple2< Integer, V > t) throws Exception {
             int unboxed = t._1().intValue();
             return unboxed >= start && unboxed < stop;
+        }
+    }
+    
+    
+    /**
+     * 
+     * Invert look-up table
+     * 
+     * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+     *
+     * @param <K> key
+     */
+    public static class InvertLut<K> implements PairFunction< Tuple2< K, double[] >, K, double[] > {
+    	/**
+		 * 
+		 */
+		private static final long serialVersionUID = 6958801646350755543L;
+
+		@Override
+        public Tuple2<K, double[]> call(Tuple2<K, double[]> t) throws Exception {
+            final double[] lut = t._2();
+            SingleDimensionLUTRealTransform transform =
+                    new SingleDimensionLUTRealTransform( lut, 1, 1, 0 );
+            double[] inverse = new double[lut.length];
+            double[] source = new double[1];
+            double[] target = new double[1];
+            for( int i = 0; i < inverse.length; ++i ) {
+                target[0] = i;
+                transform.applyInverse( source, target );
+                inverse[i] = source[0];
+            }
+            return Utility.tuple2( t._1(), inverse );
         }
     }
 
