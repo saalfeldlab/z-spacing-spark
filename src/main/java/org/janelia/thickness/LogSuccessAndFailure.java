@@ -31,7 +31,7 @@ public class LogSuccessAndFailure {
         // assume number of successes >> number of failures => only store failures and set image to
         List<Tuple2<Integer, Integer>> failures = input
                 .filter(new OnlyFailures< Tuple2<Integer,Integer>, double[] >() )
-                .map(new DropValue<Tuple2<Integer, Integer>, double[]>())
+                .map(new Utility.DropValue<Tuple2<Integer, Integer>, double[]>())
                 .collect()
                 ;
 
@@ -64,24 +64,6 @@ public class LogSuccessAndFailure {
         public Tuple2<K, Boolean> call(Tuple2<K, V> t) throws Exception {
             return Utility.tuple2(t._1(), true);
         }
-    }
-
-    public static class DropValue<K, V> implements Function<Tuple2<K, V>, K>
-    {
-
-        /**
-		 * 
-		 */
-		private static final long serialVersionUID = 1046836443822643493L;
-
-		@Override
-        public K call(Tuple2<K, V> t) throws Exception {
-            return t._1();
-        }
-    }
-
-    public static void main(String[] args) {
-
     }
 
 }
