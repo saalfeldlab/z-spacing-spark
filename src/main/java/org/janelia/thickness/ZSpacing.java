@@ -27,53 +27,56 @@ import loci.formats.FormatException;
 import scala.Tuple2;
 
 /**
- * 
+ *
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  *
  */
 public class ZSpacing
 {
-	
-	private static class Parameters {
-		
+
+	private static class Parameters
+	{
+
 		@Argument( metaVar = "CONFIG_PATH" )
 		private String configPath;
-		
+
 		private boolean parsedSuccessfully;
 	}
 
 	public static void main( final String[] args ) throws FormatException, IOException
 	{
-		
-		Parameters p = new Parameters();
-		CmdLineParser parser = new CmdLineParser( p );
-    	try {
-			parser.parseArgument(args);
+
+		final Parameters p = new Parameters();
+		final CmdLineParser parser = new CmdLineParser( p );
+		try
+		{
+			parser.parseArgument( args );
 			p.parsedSuccessfully = true;
-		} catch (CmdLineException e) {
-            // handling of wrong arguments
-			System.err.println(e.getMessage());
-			parser.printUsage(System.err);
+		}
+		catch ( final CmdLineException e )
+		{
+			// handling of wrong arguments
+			System.err.println( e.getMessage() );
+			parser.printUsage( System.err );
 			p.parsedSuccessfully = false;
 		}
 
-        if ( p.parsedSuccessfully )
+		if ( p.parsedSuccessfully )
 
-        {
+		{
 			final SparkConf conf = new SparkConf()
 					.setAppName( "ZSpacing" )
 					.set( "spark.network.timeout", "600" )
-					.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-					.set("spark.kryo.registrator", KryoSerialization.Registrator.class.getName())
-					;
-	
+					.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+					.set( "spark.kryo.registrator", KryoSerialization.Registrator.class.getName() );
+
 			final JavaSparkContext sc = new JavaSparkContext( conf );
 			final ScaleOptions scaleOptions = ScaleOptions.createFromFile( p.configPath );
-	
+
 			run( sc, scaleOptions );
-	
+
 			sc.close();
-        }
+		}
 
 	}
 
@@ -171,8 +174,8 @@ public class ZSpacing
 			}
 			else
 			{
-				Tuple2<Double, Double> min = Utility.tuple2( 0.0, 0.0 );
-				Tuple2<Double, Double> max = Utility.tuple2( (double)previousDim[0]-1, (double)previousDim[1]-1);
+				final Tuple2< Double, Double > min = Utility.tuple2( 0.0, 0.0 );
+				final Tuple2< Double, Double > max = Utility.tuple2( ( double ) previousDim[ 0 ] - 1, ( double ) previousDim[ 1 ] - 1 );
 				final BlockCoordinates cbs1 = new BlockCoordinates( previousOffset, previousStep );
 				final BlockCoordinates cbs2 = new BlockCoordinates( currentOffset, currentStep );
 				final ArrayList< BlockCoordinates.Coordinate > newCoords = cbs2.generateFromBoundingBox( dim );
@@ -180,10 +183,9 @@ public class ZSpacing
 				final ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > mapping = new ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > >();
 				for ( final BlockCoordinates.Coordinate n : newCoords )
 				{
-					mapping.add( Utility.tuple2( 
-							n.getLocalCoordinates(), 
-							Utility.max( Utility.min( cbs1.translateOtherLocalCoordiantesIntoLocalSpace(n), max ), min )
-							) );
+					mapping.add( Utility.tuple2(
+							n.getLocalCoordinates(),
+							Utility.max( Utility.min( cbs1.translateOtherLocalCoordiantesIntoLocalSpace( n ), max ), min ) ) );
 				}
 
 				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim, new SparkInterpolation.NearestNeighbor() );
@@ -216,7 +218,7 @@ public class ZSpacing
 			final Chunk chunk = new Chunk( scaleOptions.chunkSizes[ i ], scaleOptions.overlaps[ i ], size, options[ i ].comparisonRange );
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > result =
-					SparkInference.inferCoordinates(sc, matrices, currentCoordinates, chunk, options[ i ], lutPattern ).cache();
+					SparkInference.inferCoordinates( sc, matrices, currentCoordinates, chunk, options[ i ], lutPattern ).cache();
 			result.count();
 			System.out.println( "Inference done!" );
 
@@ -275,7 +277,7 @@ public class ZSpacing
 			System.out.println(
 					"Successfully wrote " + ( success.size() - count ) + "/" + success.size() + " (forward) and " +
 							( successBackward.size() - countBackward ) + "/" + successBackward.size() + " (backward) " +
-							"images at iteration " + i + String.format( " in %25dms", ( tEnd - tStart ) ) );
+							"images at iteration " + i + String.format( " in %25dms", tEnd - tStart ) );
 
 			times.add( Utility.tuple2( tStart, tEnd ) );
 		}
@@ -287,27 +289,28 @@ public class ZSpacing
 		}
 	}
 
-	public static int[] getDimensionsForStepAndRadius( int[] dim, int[] step, int[] radius )
+	public static int[] getDimensionsForStepAndRadius( final int[] dim, final int[] step, final int[] radius )
 	{
 		return new int[] {
 				Math.max( 1, ( int ) Math.ceil( ( dim[ 0 ] - radius[ 0 ] ) * 1.0 / step[ 0 ] ) ),
 				Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - radius[ 1 ] ) * 1.0 / step[ 1 ] ) )
 		};
 	}
-	
+
 	public static class DropWeights< K, V1, V2 > implements PairFunction< Tuple2< K, Tuple2< V1, V2 > >, K, V1 >
 	{
 
 		/**
-		 * 
+		 *
 		 */
 		private static final long serialVersionUID = -2378364940202047703L;
 
 		@Override
-		public Tuple2<K, V1> call(Tuple2<K, Tuple2<V1, V2>> t) throws Exception {
+		public Tuple2< K, V1 > call( final Tuple2< K, Tuple2< V1, V2 > > t ) throws Exception
+		{
 			return Utility.tuple2( t._1(), t._2()._1() );
 		}
-		
+
 	}
 
 }

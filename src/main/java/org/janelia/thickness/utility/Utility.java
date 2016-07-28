@@ -55,12 +55,14 @@ public class Utility
 		return new Tuple2< U, V >( u, v );
 	}
 
-	public static Tuple2< Integer, Integer > tuple2( int[] arr ) {
-		return Utility.tuple2( arr[0], arr[1] );
+	public static Tuple2< Integer, Integer > tuple2( int[] arr )
+	{
+		return Utility.tuple2( arr[ 0 ], arr[ 1 ] );
 	}
 
-	public static Tuple2< Long, Long > tuple2( long[] arr ) {
-		return Utility.tuple2( arr[0], arr[1] );
+	public static Tuple2< Long, Long > tuple2( long[] arr )
+	{
+		return Utility.tuple2( arr[ 0 ], arr[ 1 ] );
 	}
 
 	public static int[] arrayInt( Tuple2< Integer, Integer > t )
@@ -68,10 +70,10 @@ public class Utility
 		return arrayInt( t, new int[ 2 ] );
 	}
 
-	public static int[] arrayInt( Tuple2< Integer, Integer> t, int[] array )
+	public static int[] arrayInt( Tuple2< Integer, Integer > t, int[] array )
 	{
-		array[0] = t._1();
-		array[1] = t._2();
+		array[ 0 ] = t._1();
+		array[ 1 ] = t._2();
 		return array;
 	}
 
@@ -82,8 +84,8 @@ public class Utility
 
 	public static long[] arrayLong( Tuple2< Long, Long > t, long[] array )
 	{
-		array[0] = t._1();
-		array[1] = t._2();
+		array[ 0 ] = t._1();
+		array[ 1 ] = t._2();
 		return array;
 	}
 
@@ -94,11 +96,11 @@ public class Utility
 
 	public static double[] arrayDouble( Tuple2< Double, Double > t, double[] array )
 	{
-		array[0] = t._1();
-		array[1] = t._2();
+		array[ 0 ] = t._1();
+		array[ 1 ] = t._2();
 		return array;
 	}
-	
+
 	public static Tuple2< Double, Double > min( Tuple2< Double, Double > t1, Tuple2< Double, Double > t2 )
 	{
 		return Utility.tuple2( Math.min( t1._1(), t2._1() ), Math.min( t1._2(), t2._2() ) );
@@ -108,7 +110,7 @@ public class Utility
 	{
 		return Utility.tuple2( Math.max( t1._1(), t2._1() ), Math.max( t1._2(), t2._2() ) );
 	}
-	
+
 	public static < U, V, W > Tuple3< U, V, W > tuple3( final U u, final V v, final W w )
 	{
 		return new Tuple3< U, V, W >( u, v, w );
@@ -224,7 +226,7 @@ public class Utility
 	}
 
 	/**
-	 * swap keys K1, K2 for key K1 pointing to a key-value pair K2, V 
+	 * swap keys K1, K2 for key K1 pointing to a key-value pair K2, V
 	 * 
 	 * rdd in: ( K1 -> K2,V ) rdd out: ( K2 -> K1,V )
 	 * 
@@ -250,7 +252,7 @@ public class Utility
 
 		private final String outputFormat;
 
-		@SuppressWarnings("unused")
+		@SuppressWarnings( "unused" )
 		private final ConvertImageProcessor.TYPE ipType;
 
 		public WriteToFormatString( final String outputFormat )
@@ -523,6 +525,7 @@ public class Utility
 		 * 
 		 */
 		private static final long serialVersionUID = 3090174862493622888L;
+
 		private final String pattern;
 
 		public LoadFileFromPattern( final String pattern )
@@ -590,11 +593,13 @@ public class Utility
 
 	/**
 	 * Transform RDD into PairRDD with same value as key:
+	 * 
 	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
 	 *
 	 * @param <T>
 	 */
-	public static class Duplicate< T > implements PairFunction< T, T, T > {
+	public static class Duplicate< T > implements PairFunction< T, T, T >
+	{
 
 		/**
 		 *
@@ -602,7 +607,8 @@ public class Utility
 		private static final long serialVersionUID = -2287251828070115337L;
 
 		@Override
-		public Tuple2<T, T> call(T t) throws Exception {
+		public Tuple2< T, T > call( T t ) throws Exception
+		{
 			return Utility.tuple2( t, t );
 		}
 
@@ -626,93 +632,105 @@ public class Utility
 		private static final long serialVersionUID = -2208916056673976309L;
 
 		@Override
-		public K call(Tuple2<K, V> t) throws Exception {
+		public K call( Tuple2< K, V > t ) throws Exception
+		{
 			return t._1();
 		}
 
 	}
 
-    /**
-     * 
-     * Accept all entries with an integer key k: start &lt;= k &lt; stop
-     * 
-     * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
-     *
-     * @param <V> value
-     */
-    public static class FilterRange< V > implements Function<Tuple2< Integer, V>, Boolean >
-    {
+	/**
+	 * 
+	 * Accept all entries with an integer key k: start &lt;= k &lt; stop
+	 * 
+	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+	 *
+	 * @param <V>
+	 *            value
+	 */
+	public static class FilterRange< V > implements Function< Tuple2< Integer, V >, Boolean >
+	{
 
-        /**
+		/**
 		 * 
 		 */
 		private static final long serialVersionUID = -2112302031715609728L;
+
 		private final long start;
-        private final long stop;
 
-        public FilterRange(long start, long stop) {
-            this.start = start;
-            this.stop = stop;
-        }
+		private final long stop;
 
-        @Override
-        public Boolean call(Tuple2< Integer, V > t) throws Exception {
-            int unboxed = t._1().intValue();
-            return unboxed >= start && unboxed < stop;
-        }
-    }
-    
-    
-    /**
-     * 
-     * Invert look-up table
-     * 
-     * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
-     *
-     * @param <K> key
-     */
-    public static class InvertLut<K> implements PairFunction< Tuple2< K, double[] >, K, double[] > {
-    	/**
+		public FilterRange( long start, long stop )
+		{
+			this.start = start;
+			this.stop = stop;
+		}
+
+		@Override
+		public Boolean call( Tuple2< Integer, V > t ) throws Exception
+		{
+			int unboxed = t._1().intValue();
+			return unboxed >= start && unboxed < stop;
+		}
+	}
+
+	/**
+	 * 
+	 * Invert look-up table
+	 * 
+	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+	 *
+	 * @param <K>
+	 *            key
+	 */
+	public static class InvertLut< K > implements PairFunction< Tuple2< K, double[] >, K, double[] >
+	{
+		/**
 		 * 
 		 */
 		private static final long serialVersionUID = 6958801646350755543L;
 
 		@Override
-        public Tuple2<K, double[]> call(Tuple2<K, double[]> t) throws Exception {
-            final double[] lut = t._2();
-            SingleDimensionLUTRealTransform transform =
-                    new SingleDimensionLUTRealTransform( lut, 1, 1, 0 );
-            double[] inverse = new double[lut.length];
-            double[] source = new double[1];
-            double[] target = new double[1];
-            for( int i = 0; i < inverse.length; ++i ) {
-                target[0] = i;
-                transform.applyInverse( source, target );
-                inverse[i] = source[0];
-            }
-            return Utility.tuple2( t._1(), inverse );
-        }
-    }
-    
-    
-    public static class AddOffsetToKey< V > implements PairFunction< Tuple2< Integer, V >, Integer, V > {
-    	
-    	/**
+		public Tuple2< K, double[] > call( Tuple2< K, double[] > t ) throws Exception
+		{
+			final double[] lut = t._2();
+			SingleDimensionLUTRealTransform transform =
+					new SingleDimensionLUTRealTransform( lut, 1, 1, 0 );
+			double[] inverse = new double[ lut.length ];
+			double[] source = new double[ 1 ];
+			double[] target = new double[ 1 ];
+			for ( int i = 0; i < inverse.length; ++i )
+			{
+				target[ 0 ] = i;
+				transform.applyInverse( source, target );
+				inverse[ i ] = source[ 0 ];
+			}
+			return Utility.tuple2( t._1(), inverse );
+		}
+	}
+
+	public static class AddOffsetToKey< V > implements PairFunction< Tuple2< Integer, V >, Integer, V >
+	{
+
+		/**
 		 * 
 		 */
 		private static final long serialVersionUID = 4422574591898855269L;
+
 		private final int offset;
 
-		public AddOffsetToKey(int offset) {
+		public AddOffsetToKey( int offset )
+		{
 			super();
 			this.offset = offset;
 		}
 
 		@Override
-		public Tuple2<Integer, V> call(Tuple2<Integer, V> t) throws Exception {
+		public Tuple2< Integer, V > call( Tuple2< Integer, V > t ) throws Exception
+		{
 			return Utility.tuple2( t._1() + offset, t._2() );
 		}
-    	
-    }
+
+	}
 
 }

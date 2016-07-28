@@ -41,7 +41,7 @@ public class SparkInference
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, double[] > > matricesWithStartingCoordinates = matrices
 				.join( startingCoordinates );
 		final JavaPairRDD< Tuple2< Integer, Integer >, double[] > results = matricesWithStartingCoordinates
-				.mapToPair( new Inference<Tuple2<Integer, Integer>>( options ) );
+				.mapToPair( new Inference< Tuple2< Integer, Integer > >( options ) );
 		return results;
 	}
 
@@ -58,13 +58,13 @@ public class SparkInference
 			this.options = options;
 		}
 
-		public Tuple2< K, double[] > 
-		call( final Tuple2< K, Tuple2< FloatProcessor, double[] > > xyAndMatrixAndCoordinates )
-				throws Exception
+		public Tuple2< K, double[] >
+				call( final Tuple2< K, Tuple2< FloatProcessor, double[] > > xyAndMatrixAndCoordinates )
+						throws Exception
 		{
 			final Tuple2< FloatProcessor, double[] > matrixAndCoordinates = xyAndMatrixAndCoordinates._2();
 			final FloatProcessor fp = matrixAndCoordinates._1();
-			final float[] data = (float[])fp.getPixels();
+			final float[] data = ( float[] ) fp.getPixels();
 			final int w = fp.getWidth();
 			final int h = fp.getHeight();
 			RandomAccessibleInterval< FloatType > matrix = ArrayImgs.floats( data, w, h );

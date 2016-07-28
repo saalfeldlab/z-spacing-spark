@@ -10,35 +10,39 @@ import java.io.Serializable;
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
-public class DPTuple implements Serializable {
+public class DPTuple implements Serializable
+{
 
-    /**
+	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 5039163885143259368L;
+
 	public final double[] pixels;
-    public final int width;
-    public final int height;
 
-    public DPTuple( int width, int height )
-    {
-        this( new double[ width*height ], width, height );
-    }
+	public final int width;
 
-    public DPTuple(double[] pixels, int width, int height) {
-        this.pixels = pixels;
-        this.width = width;
-        this.height = height;
-    }
+	public final int height;
 
-    public DPTuple clone()
-    {
-        return new DPTuple( pixels.clone(), width, height );
-    }
+	public DPTuple( int width, int height )
+	{
+		this( new double[ width * height ], width, height );
+	}
 
+	public DPTuple( double[] pixels, int width, int height )
+	{
+		this.pixels = pixels;
+		this.width = width;
+		this.height = height;
+	}
 
-    public ArrayImg< DoubleType, DoubleArray> createDoubleArrayImg()
-    {
-        return ArrayImgs.doubles( pixels, width, height );
-    }
+	public DPTuple clone()
+	{
+		return new DPTuple( pixels.clone(), width, height );
+	}
+
+	public ArrayImg< DoubleType, DoubleArray > createDoubleArrayImg()
+	{
+		return ArrayImgs.doubles( pixels, width, height );
+	}
 }
