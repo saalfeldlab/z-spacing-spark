@@ -13,6 +13,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.KryoSerialization;
 import org.janelia.thickness.ScaleOptions;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
@@ -89,7 +90,11 @@ public class SparkRender
 
 		if ( o.parsedSuccessfully )
 		{
-			final SparkConf sparkConf = new SparkConf().setAppName( "Render" );
+			final SparkConf sparkConf = new SparkConf()
+					.setAppName( "Render" )
+					.set( "spark.network.timeout", "600" )
+					.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+					.set( "spark.kryo.registrator", KryoSerialization.Registrator.class.getName() );
 			final JavaSparkContext sc = new JavaSparkContext( sparkConf );
 			final String configPath = o.configPath;
 			final int iteration = o.iteration;
