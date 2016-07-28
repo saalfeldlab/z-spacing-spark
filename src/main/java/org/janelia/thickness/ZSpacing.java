@@ -197,15 +197,13 @@ public class ZSpacing
 
 			final ColumnsAndSections columnsAndSections = new ColumnsAndSections( currentDim, size );
 			final JavaPairRDD< Integer, DPTuple > coordinateSections = columnsAndSections.columnsToSections( sc, result );
-			final JavaPairRDD< Integer, DPTuple > diffused = coordinateSections.mapToPair( new FillHoles.SparkPairFunction() );
 
-			coordinates = columnsAndSections.sectionsToColumns( sc, diffused );
+			coordinates = columnsAndSections.sectionsToColumns( sc, coordinateSections );
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).cache();
 			final JavaPairRDD< Integer, DPTuple > backwardImages = columnsAndSections.columnsToSections( sc, backward );
-//            JavaPairRDD<Integer, FPTuple> images = SparkTransformationToImages.toImages( coordinates, currentDim, currentOffset, currentStep );
 
 			final String outputFormat = String.format( outputFolder, i ) + "/forward/%04d.tif";
-			final List< Tuple2< Integer, Boolean > > success = diffused
+			final List< Tuple2< Integer, Boolean > > success = coordinateSections
 					.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormat ) )
 					.collect();
 
