@@ -21,7 +21,7 @@ import scala.Tuple2;
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  *
  */
-public class TolerantNCCTest
+public class TranslationInvariantMatrixGeneratorTest
 {
 
 	@Test
@@ -53,8 +53,8 @@ public class TolerantNCCTest
 		int[] averageBlockSize = { 0, 0 };
 		int[] averageBlockStep = { 1, 1 };
 
-		Tuple2< FloatProcessor, FloatProcessor > maxCorrs = TolerantNCC.tolerantNCC( fixed, moving, maxDistance, blockRadius, 0, 0 );
-		HashMap< Tuple2< Integer, Integer >, Double > hm = TolerantNCC.average( maxCorrs._1(), maxCorrs._2(), averageBlockSize, averageBlockStep );
+		Tuple2< FloatProcessor, FloatProcessor > maxCorrs = TranslationInvariantMatrixGenerator.tolerantNCC( fixed, moving, maxDistance, blockRadius, 0, 0 );
+		HashMap< Tuple2< Integer, Integer >, Double > hm = TranslationInvariantMatrixGenerator.average( maxCorrs._1(), maxCorrs._2(), averageBlockSize, averageBlockStep );
 
 		BlockPMCC pmcc = new BlockPMCC( fixed, moving );
 		pmcc.setOffset( 0, 0 );
@@ -143,8 +143,8 @@ public class TolerantNCCTest
 			}
 		}
 
-		Tuple2< FloatProcessor, FloatProcessor > maxCorrs = TolerantNCC.tolerantNCC( fixedOff, movingOff, offset, blockRadius, 0, 0 );
-		HashMap< Tuple2< Integer, Integer >, Double > hm = TolerantNCC.average( maxCorrs._1(), maxCorrs._2(), averageBlockSize, averageBlockStep );
+		Tuple2< FloatProcessor, FloatProcessor > maxCorrs = TranslationInvariantMatrixGenerator.tolerantNCC( fixedOff, movingOff, offset, blockRadius, 0, 0 );
+		HashMap< Tuple2< Integer, Integer >, Double > hm = TranslationInvariantMatrixGenerator.average( maxCorrs._1(), maxCorrs._2(), averageBlockSize, averageBlockStep );
 
 		BlockPMCC pmcc = new BlockPMCC( fixed, moving );
 		pmcc.setOffset( 0, 0 );

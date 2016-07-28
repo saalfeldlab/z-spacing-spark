@@ -11,79 +11,91 @@ import org.janelia.thickness.utility.Utility;
 
 import ij.process.FloatProcessor;
 import scala.Tuple2;
-import scala.Tuple3;
+import scala.Tuple5;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class ComputeMatricesChunked
 {
+	private final JavaSparkContext sc;
+
 	private final JavaPairRDD< Integer, FloatProcessor > files;
 
-	private final ArrayList< MatrixGenerationFromImagePairs > generators;
+	private final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > > pairs;
 
-	private final ArrayList< Tuple3< Integer, Integer, Integer > > bounds;
+	private final ArrayList< Tuple5< Integer, Integer, Integer, Integer, Integer > > bounds;
 
-	private final int stepSize;
+	private final int chunkStepSize;
 
 	private final int maxRange;
 
 	private final int[] dim;
 
-	public ComputeMatricesChunked( JavaSparkContext sc, JavaPairRDD< Integer, FloatProcessor > files, int stepSize, int maxRange, int[] dim, boolean ensurePersistence )
+	public ComputeMatricesChunked(
+			final JavaSparkContext sc,
+			final JavaPairRDD< Integer, FloatProcessor > files,
+			final int stepSize,
+			final int maxRange,
+			final int[] dim,
+			final boolean ensurePersistence )
 	{
+		this.sc = sc;
 		this.files = files;
-		this.stepSize = stepSize;
+		this.chunkStepSize = stepSize;
 		this.maxRange = maxRange;
 
-		this.generators = new ArrayList<>();
+		this.pairs = new ArrayList<>();
 		this.bounds = new ArrayList<>();
 		this.dim = dim;
 
-		int stop = ( int ) files.count();
-		for ( int z = 0; z < stop; z += this.stepSize )
+		final int stop = ( int ) files.count();
+		for ( int z = 0; z < stop; z += this.chunkStepSize )
 		{
 			final int lower = Math.max( z - this.maxRange, 0 );
 			final int upper = Math.min( z + this.maxRange + stepSize, stop );
 			final int size = upper - lower;
-			JavaPairRDD< Integer, FloatProcessor > rdd = files.filter( new Utility.FilterRange<>( lower, upper ) ).cache();
+			final JavaPairRDD< Integer, FloatProcessor > rdd = files.filter( new Utility.FilterRange<>( lower, upper ) ).cache();
 			final HashMap< Integer, ArrayList< Integer > > keyPairList = new HashMap< Integer, ArrayList< Integer > >();
 			for ( int i = lower; i < upper; ++i )
 			{
-				ArrayList< Integer > al = new ArrayList< Integer >();
+				final ArrayList< Integer > al = new ArrayList< Integer >();
 				for ( int k = i + 1; k < upper && k - i <= maxRange; ++k )
 				{
 					al.add( k );
 				}
 				keyPairList.put( i, al );
 			}
-			JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairs =
-					JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ) );
-			MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs( sc, pairs, this.dim, size, lower );
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairs =
+					JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ) ).cache();
 			if ( ensurePersistence )
-				matrixGenerator.ensurePersistence();
-			this.generators.add( matrixGenerator );
-			this.bounds.add( Utility.tuple3( z, Math.min( z + stepSize, stop ), z - lower ) );
+				pairs.count();
+			this.pairs.add( pairs );
+			this.bounds.add( Utility.tuple5( z, Math.min( z + stepSize, stop ), z - lower, lower, size ) );
 		}
 	}
 
 	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > run(
-			int range,
-			int stride[],
-			int[] correlationBlockRadius )
+			final MatrixGenerator.Factory factory,
+			final int range,
+			final int[] stepSize,
+			final int[] blockRadius )
 	{
-		ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > > rdds = new ArrayList<>();
+		final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > > rdds = new ArrayList<>();
 		final int maxIndex = ( int ) ( files.count() - 1 );
 		final int stop = maxIndex + 1;
-		for ( int i = 0; i < generators.size(); ++i )
+		for ( int i = 0; i < this.pairs.size(); ++i )
 		{
-			MatrixGenerationFromImagePairs matrixGenerator = this.generators.get( i );
-			Tuple3< Integer, Integer, Integer > bound = this.bounds.get( i );
-			JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =
-					matrixGenerator.generateMatrices( stride, correlationBlockRadius, range ).cache();
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pair = this.pairs.get( i );
+			final MatrixGenerator matrixGenerator = factory.create();
+//			final MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs( dim );
+//			final TranslationInvariantMatrixGenerator matrixGenerator = new TranslationInvariantMatrixGenerator( blockRadius, new int[] { 0, 0 } );
+			final Tuple5< Integer, Integer, Integer, Integer, Integer > bound = this.bounds.get( i );
+			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =
+					matrixGenerator.generateMatrices( sc, pair, blockRadius, stepSize, range, bound._4(), bound._5() ).cache();
 			System.out.println( "SmallerJoinTest: " + matrices.count() + " matrices." );
-			JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > strip =
-					matrices.mapToPair( new MatrixToStrip<>( bound._3(), Math.min( stepSize, stop - bound._1() ), range ) );
+			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > strip =
+					matrices.mapToPair( new MatrixToStrip<>( bound._3(), Math.min( chunkStepSize, stop - bound._1() ), range ) );
 			rdds.add( strip );
 		}
 
@@ -92,8 +104,8 @@ public class ComputeMatricesChunked
 
 		for ( int i = 1; i < rdds.size(); ++i )
 		{
-			JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > rdd = rdds.get( i );
-			Tuple3< Integer, Integer, Integer > bound = bounds.get( i );
+			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > rdd = rdds.get( i );
+			final Tuple5< Integer, Integer, Integer, Integer, Integer > bound = bounds.get( i );
 
 			final int offset = bound._1();
 
@@ -105,9 +117,9 @@ public class ComputeMatricesChunked
 	}
 
 	/**
-	 * 
+	 *
 	 * Convert matrix to strip.
-	 * 
+	 *
 	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
 	 *
 	 * @param <K>
@@ -116,7 +128,7 @@ public class ComputeMatricesChunked
 	public static class MatrixToStrip< K > implements PairFunction< Tuple2< K, FloatProcessor >, K, FloatProcessor >
 	{
 		/**
-		 * 
+		 *
 		 */
 		private static final long serialVersionUID = -6780567502737253053L;
 
@@ -126,7 +138,7 @@ public class ComputeMatricesChunked
 
 		private final int range;
 
-		public MatrixToStrip( int offset, int size, int range )
+		public MatrixToStrip( final int offset, final int size, final int range )
 		{
 			this.offset = offset;
 			this.size = size;
@@ -134,18 +146,18 @@ public class ComputeMatricesChunked
 		}
 
 		@Override
-		public Tuple2< K, FloatProcessor > call( Tuple2< K, FloatProcessor > t ) throws Exception
+		public Tuple2< K, FloatProcessor > call( final Tuple2< K, FloatProcessor > t ) throws Exception
 		{
 
-			FloatProcessor matrix = t._2();
-			FloatProcessor strip = new FloatProcessor( 2 * range + 1, this.size );
-			int w = matrix.getWidth();
+			final FloatProcessor matrix = t._2();
+			final FloatProcessor strip = new FloatProcessor( 2 * range + 1, this.size );
+			final int w = matrix.getWidth();
 
 			for ( int z = offset, stripZ = 0; stripZ < size; ++z, ++stripZ )
 			{
 				for ( int r = -range; r <= range; ++r )
 				{
-					int k = r + z;
+					final int k = r + z;
 					if ( k < 0 || k >= w )
 						continue;
 					strip.setf( range + r, stripZ, matrix.getf( z, k ) );
@@ -157,9 +169,9 @@ public class ComputeMatricesChunked
 	}
 
 	/**
-	 * 
+	 *
 	 * Create complete empty strip and add chunk at position lower
-	 * 
+	 *
 	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
 	 *
 	 * @param <K>
@@ -169,7 +181,7 @@ public class ComputeMatricesChunked
 	{
 
 		/**
-		 * 
+		 *
 		 */
 		private static final long serialVersionUID = -126790284079446439L;
 
@@ -179,7 +191,7 @@ public class ComputeMatricesChunked
 
 		private final int upper;
 
-		public PutIntoGlobalContext( int size, int lower, int upper )
+		public PutIntoGlobalContext( final int size, final int lower, final int upper )
 		{
 			this.size = size;
 			this.lower = lower;
@@ -187,11 +199,11 @@ public class ComputeMatricesChunked
 		}
 
 		@Override
-		public Tuple2< K, FloatProcessor > call( Tuple2< K, FloatProcessor > t ) throws Exception
+		public Tuple2< K, FloatProcessor > call( final Tuple2< K, FloatProcessor > t ) throws Exception
 		{
-			FloatProcessor source = t._2();
-			int w = source.getWidth();
-			FloatProcessor result = new FloatProcessor( w, this.size );
+			final FloatProcessor source = t._2();
+			final int w = source.getWidth();
+			final FloatProcessor result = new FloatProcessor( w, this.size );
 			result.add( Double.NaN );
 			for ( int y = this.lower, sourceY = 0; y < this.upper; ++y, ++sourceY )
 				for ( int x = 0; x < w; ++x )
@@ -201,38 +213,38 @@ public class ComputeMatricesChunked
 	}
 
 	/**
-	 * 
+	 *
 	 * Insert chunk into complete strip at position specified by offset
-	 * 
+	 *
 	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
 	 *
 	 * @param <K>
 	 *            key
 	 */
 	public static class JoinStrips< K >
-			implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > >, K, FloatProcessor >
+	implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > >, K, FloatProcessor >
 	{
 
 		/**
-		 * 
+		 *
 		 */
 		private static final long serialVersionUID = -7559889575641624904L;
 
 		private final int offset;
 
-		public JoinStrips( int offset )
+		public JoinStrips( final int offset )
 		{
 			this.offset = offset;
 		}
 
 		@Override
-		public Tuple2< K, FloatProcessor > call( Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
+		public Tuple2< K, FloatProcessor > call( final Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
 		{
-			Tuple2< FloatProcessor, FloatProcessor > fps = t._2();
-			FloatProcessor source = fps._2();
-			FloatProcessor target = fps._1();
-			int sourceH = source.getHeight();
-			int sourceW = source.getWidth();
+			final Tuple2< FloatProcessor, FloatProcessor > fps = t._2();
+			final FloatProcessor source = fps._2();
+			final FloatProcessor target = fps._1();
+			final int sourceH = source.getHeight();
+			final int sourceW = source.getWidth();
 			for ( int sourceY = 0, y = offset; sourceY < sourceH; ++sourceY, ++y )
 			{
 				for ( int x = 0; x < sourceW; ++x )

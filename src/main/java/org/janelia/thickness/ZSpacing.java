@@ -13,6 +13,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.similarity.ComputeMatricesChunked;
+import org.janelia.thickness.similarity.DefaultMatrixGenerator;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
 import org.kohsuke.args4j.Argument;
@@ -195,7 +196,7 @@ public class ZSpacing
 			System.out.println( "Calculated " + currentCoordinates.count() + " coordinates" );
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =
-					generator.run( options[ i ].comparisonRange, currentStep, currentOffset );
+					generator.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
 
 			System.out.println( "Calculated " + matrices.cache().count() + " matrices" );
 			System.out.println( Arrays.toString( dim ) + " " + Arrays.toString( currentOffset ) + " " + Arrays.toString( currentStep ) + matrices.take( 1 ).get( 0 )._1() );
@@ -204,8 +205,8 @@ public class ZSpacing
 			{
 				final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
 				matrices
-						.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) )
-						.collect();
+				.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) )
+				.collect();
 			}
 
 			System.out.println( currentCoordinates.take( 1 ).get( 0 )._1() );
@@ -248,10 +249,10 @@ public class ZSpacing
 			{
 				final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
 				matrices
-						.join( backward )
-						.mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() )
-						.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) )
-						.collect();
+				.join( backward )
+				.mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() )
+				.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) )
+				.collect();
 			}
 
 			int count = 0;
