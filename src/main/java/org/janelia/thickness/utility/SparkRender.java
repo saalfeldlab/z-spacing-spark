@@ -72,10 +72,6 @@ public class SparkRender {
     	
     	Options o = new Options();
     	CmdLineParser parser = new CmdLineParser( o );
-    	args = new String[] {
-    			"123", "4", "-s", "0.1", "343"
-    	};
-    	System.out.println( Arrays.toString( args ) );
     	try {
 			parser.parseArgument(args);
 			o.scale = o.sourcePattern == null ? 1.0 : o.scale;
@@ -86,18 +82,11 @@ public class SparkRender {
 			parser.printUsage(System.err);
 			o.parsedSuccessfully = false;
 		}
-    	System.out.println( o.configPath );
-    	System.out.println( o.iteration );
-    	System.out.println( o.targetPattern );
-    	System.out.println( o.sourcePattern );
-    	System.out.println( o.scale );
-    	System.out.println( o.parsedSuccessfully );
-    	System.exit( 512 );
 
-        SparkConf sparkConf = new SparkConf().setAppName("Render");
-        JavaSparkContext sc = new JavaSparkContext(sparkConf);
         if ( o.parsedSuccessfully )
         {
+            SparkConf sparkConf = new SparkConf().setAppName("Render");
+            JavaSparkContext sc = new JavaSparkContext(sparkConf);
 	        final String configPath = o.configPath;
 	        final int iteration = o.iteration;
 	        final String outputFormat = o.targetPattern;
@@ -143,6 +132,7 @@ public class SparkRender {
 	        JavaPairRDD<Integer, FloatProcessor> transformed = render(sc, sections, transforms, stepsDouble, radiiDouble, dim, scale, start);
 	
 	        write( sc, transformed, outputFormat, size, Utility.ConvertImageProcessor.getType( img0.getProcessor() ) );
+	        sc.close();
         }
 
     }
