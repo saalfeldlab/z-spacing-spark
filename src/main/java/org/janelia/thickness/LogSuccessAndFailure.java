@@ -11,7 +11,7 @@ import scala.Tuple2;
 import java.util.List;
 
 /**
- * Created by hanslovskyp on 10/1/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class LogSuccessAndFailure {
 

@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Created by hanslovskyp on 10/23/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class SparkRenderWave {
 

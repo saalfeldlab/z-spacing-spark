@@ -15,6 +15,11 @@ import ij.process.FloatProcessor;
 import mpicbg.ij.integral.BlockPMCC;
 import scala.Tuple2;
 
+/**
+ * 
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+ *
+ */
 public class TolerantNCCTest {
 
 	@Test

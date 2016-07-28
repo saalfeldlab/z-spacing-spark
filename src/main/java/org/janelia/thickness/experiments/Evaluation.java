@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Created by hanslovskyp on 2/2/16.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class Evaluation {
 

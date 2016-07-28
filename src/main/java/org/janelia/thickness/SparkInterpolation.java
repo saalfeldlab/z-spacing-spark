@@ -16,6 +16,11 @@ import org.janelia.thickness.utility.Utility;
 
 import scala.Tuple2;
 
+/**
+ * 
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+ *
+ */
 public class SparkInterpolation {
 
     public static JavaPairRDD< Tuple2< Integer, Integer >, double[] > interpolate(

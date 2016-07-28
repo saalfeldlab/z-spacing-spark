@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Created by hanslovskyp on 10/22/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class SparkRender {
 

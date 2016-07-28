@@ -13,6 +13,11 @@ import org.janelia.thickness.utility.Utility;
 import scala.Tuple2;
 import scala.Tuple3;
 
+/**
+ * 
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+ *
+ */
 public class SparkTransformationToImages {
 
     public static JavaPairRDD< Integer, FloatProcessor> toImages(

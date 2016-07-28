@@ -22,6 +22,11 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import scala.Tuple2;
 
+/**
+ * 
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+ *
+ */
 public class SparkInference
 {
 

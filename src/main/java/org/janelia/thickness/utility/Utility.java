@@ -57,7 +57,7 @@ import scala.Tuple5;
 import scala.Tuple6;
 
 /**
- * Created by hanslovskyp on 9/18/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class Utility
 {

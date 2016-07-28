@@ -24,7 +24,7 @@ import java.io.FileNotFoundException;
 import java.util.Arrays;
 
 /**
- * Created by hanslovskyp on 11/9/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class GenerateLutMovie {
 

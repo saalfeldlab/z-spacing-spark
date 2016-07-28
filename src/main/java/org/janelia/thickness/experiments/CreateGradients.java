@@ -16,7 +16,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
- * Created by phil on 1/26/16.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class CreateGradients {
 

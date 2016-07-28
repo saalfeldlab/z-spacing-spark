@@ -38,6 +38,12 @@ import net.imglib2.view.composite.CompositeIntervalView;
 import net.imglib2.view.composite.RealComposite;
 import scala.Tuple2;
 
+
+/**
+ * 
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+ *
+ */
 public class SparkInterpolationTest implements Serializable {
 
 	/**

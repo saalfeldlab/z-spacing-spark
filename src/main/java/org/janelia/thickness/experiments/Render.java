@@ -38,7 +38,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
- * Created by hanslovskyp on 10/2/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class Render {
 

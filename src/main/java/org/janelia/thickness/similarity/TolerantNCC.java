@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 /**
- * Created by hanslovskyp on 11/19/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class TolerantNCC {
 

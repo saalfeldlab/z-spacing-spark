@@ -8,7 +8,7 @@ import net.imglib2.type.numeric.real.DoubleType;
 import java.io.Serializable;
 
 /**
- * Created by hanslovskyp on 9/28/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class DPTuple implements Serializable {
 

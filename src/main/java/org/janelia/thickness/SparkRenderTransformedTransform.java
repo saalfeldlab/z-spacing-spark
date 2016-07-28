@@ -34,7 +34,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /**
- * Created by hanslovskyp on 10/22/15.
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
  */
 public class SparkRenderTransformedTransform {
 

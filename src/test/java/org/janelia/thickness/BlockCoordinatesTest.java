@@ -10,6 +10,11 @@ import org.junit.Test;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.ScaleAndTranslation;
 
+/**
+ * 
+ * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+ *
+ */
 public class BlockCoordinatesTest {
 
 	@Test
