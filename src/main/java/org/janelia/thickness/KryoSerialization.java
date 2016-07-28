@@ -3,7 +3,11 @@
  */
 package org.janelia.thickness;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
 import org.apache.spark.serializer.KryoRegistrator;
+import org.janelia.thickness.utility.DPTuple;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
@@ -11,6 +15,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
 import ij.process.FloatProcessor;
+import scala.collection.mutable.WrappedArray;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
@@ -18,6 +23,9 @@ import ij.process.FloatProcessor;
  */
 public class KryoSerialization {
 	
+	// Register all used classes so integer is used for identification rather than fully quallified class name
+	// https://github.com/EsotericSoftware/kryo#registration
+
 	public static class Registrator implements KryoRegistrator
 	{
 		/* (non-Javadoc)
@@ -26,6 +34,14 @@ public class KryoSerialization {
 		@Override
 		public void registerClasses(Kryo kryo) {
 			kryo.register( FloatProcessor.class, new FloatProcessorSerializer() );
+			kryo.register( DPTuple.class );
+			kryo.register( String.class );
+			kryo.register( WrappedArray.ofRef.class );
+			kryo.register( Object[].class );
+			kryo.register( HashMap.class );
+			kryo.register( ArrayList.class );
+			kryo.register( BlockCoordinates.class );
+			kryo.register( BlockCoordinates.Coordinate.class );
 		}
 	}
 	
