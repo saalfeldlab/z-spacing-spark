@@ -175,7 +175,7 @@ public class ZSpacing
 			if ( scaleOptions.logMatrices[ i ] )
 			{
 				final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
-				final List< Tuple2< Tuple2< Integer, Integer >, Boolean > > successMatrices = matrices
+				matrices
 						.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) )
 						.collect();
 			}
@@ -219,7 +219,7 @@ public class ZSpacing
 			if ( i < 3 )
 			{
 				final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
-				final List< Tuple2< Tuple2< Integer, Integer >, Boolean > > successTransformedMatrices = matrices
+				matrices
 						.join( backward )
 						.mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() )
 						.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) )
