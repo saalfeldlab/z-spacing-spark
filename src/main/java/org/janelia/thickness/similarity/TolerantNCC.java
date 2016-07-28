@@ -1,21 +1,17 @@
 package org.janelia.thickness.similarity;
 
-import ij.IJ;
-import ij.ImageJ;
-import ij.ImagePlus;
-import ij.process.FloatProcessor;
-import mpicbg.ij.integral.BlockPMCC;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.similarities.NCC;
-import org.janelia.thickness.utility.Utility;
-import scala.Tuple2;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+
+import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.utility.Utility;
+
+import ij.process.FloatProcessor;
+import mpicbg.ij.integral.BlockPMCC;
+import scala.Tuple2;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
