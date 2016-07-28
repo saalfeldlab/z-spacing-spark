@@ -12,7 +12,11 @@ import java.io.Serializable;
  */
 public class DPTuple implements Serializable {
 
-    public final double[] pixels;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 5039163885143259368L;
+	public final double[] pixels;
     public final int width;
     public final int height;
 
