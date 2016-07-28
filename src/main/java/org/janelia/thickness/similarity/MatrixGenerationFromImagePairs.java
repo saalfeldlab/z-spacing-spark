@@ -183,7 +183,12 @@ public class MatrixGenerationFromImagePairs {
     public static class ReduceMaps implements Function2<
             HashMap<Tuple2<Integer, Integer>, Double>, HashMap<Tuple2<Integer, Integer>, Double>,
             HashMap<Tuple2<Integer, Integer>, Double>> {
-        @Override
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 7642037831468553986L;
+
+		@Override
         public HashMap<Tuple2<Integer, Integer>, Double> call(HashMap<Tuple2<Integer, Integer>, Double> hm1, HashMap<Tuple2<Integer, Integer>, Double> hm2) throws Exception {
             hm1.putAll(hm2);
             return hm1;
@@ -194,7 +199,12 @@ public class MatrixGenerationFromImagePairs {
             Tuple2<Tuple2<Integer, Integer>, HashMap<Tuple2<Integer, Integer>, Double>>,
             Tuple2<Integer, Integer>, FloatProcessor> {
 
-        private final int size;
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 6293715394528119288L;
+		
+		private final int size;
         private final int startIndex;
 
         public MapToFloatProcessor(int size, int startIndex) {
