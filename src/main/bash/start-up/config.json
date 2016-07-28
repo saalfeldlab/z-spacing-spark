@@ -4,7 +4,9 @@
     "target": "TARGET",
     "start": START,
     "stop": STOP,
-    "scale" : 0,
+    "scale": SCALE,
+    "joinStepSize": JOIN_STEP_SIZE,
+    "logMatrices": LOG_MATRICES,
     "defaultOptions": {
         "shiftProportion": 0.6,
         "nIterations": 100,

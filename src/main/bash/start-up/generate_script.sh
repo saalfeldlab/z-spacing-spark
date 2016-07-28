@@ -7,7 +7,10 @@ START=$1
 STOP=$2
 SOURCE=${SOURCE:-$(realpath data)"/%04d.tif"}
 STAGES=${STAGES:-1}
+SCALE=${SCALE:-0}
 MAX_OFFSET=${MAX_OFFSET:-0}
+JOIN_STEP_SIZE=${JOIN_STEP_SIZE:-$(($STOP-$START))}
+LOG_MATRICES=${LOG_MATRICES:-false}
 
 if [ -d mask ]; then
     DEFAULT_MASK=$(realpath mask)"/%04d.tif"
@@ -21,8 +24,8 @@ WIDTH=$(identify -ping -format '%W' `printf "$SOURCE" $START`)
 HEIGHT=$(identify -ping -format '%H' `printf "$SOURCE" $START`)
 
 if [ -n "$SCALE" ]; then
-    ((WIDTH/=$SCALE))
-    ((HEIGHT/=$SCALE))
+    ((WIDTH/=2**$SCALE))
+    ((HEIGHT/=2**$SCALE))
 fi
 
 STAGE=0
@@ -70,5 +73,8 @@ TARGET_DIR=$PWD/$(date +%Y%m%d_%H%M%S)
 mkdir $TARGET_DIR
 ( cd $SCRIPT_DIR && cp config.json run.sh render-transform-spark.sh render-spark.sh -t $TARGET_DIR )
 OUT=$(realpath $TARGET_DIR/out)
-sed -i -e "s#START#$START#" -e "s#STOP#$STOP#" -e "s#TARGET#$OUT#" -e "s#SOURCE#$SOURCE#" -e "s#OPTS#${OPTS}#" -e "s#MASK#$MASK#" $TARGET_DIR/config.json
+sed -i \
+    -e "s#START#$START#" -e "s#STOP#$STOP#" -e "s#TARGET#$OUT#" -e "s#SOURCE#$SOURCE#" -e "s#OPTS#${OPTS}#" \
+    -e "s#MASK#$MASK#" -e "s#SCALE#$SCALE#" -e "s#LOG_MATRICES#$LOG_MATRICES#" -e "s#JOIN_STEP_SIZE#$JOIN_STEP_SIZE#" \
+    $TARGET_DIR/config.json
 chmod u+w $TARGET_DIR/config.json
