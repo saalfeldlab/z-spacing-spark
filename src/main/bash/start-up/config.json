@@ -1,6 +1,5 @@
 {
     "source": "SOURCE",
-    "mask": "MASK",
     "target": "TARGET",
     "start": START,
     "stop": STOP,

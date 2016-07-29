@@ -1,7 +1,18 @@
 #!/bin/bash
 
 SCRIPT_DIR="$(dirname ${BASH_SOURCE})"
-echo $SCRIPT_PATH
+
+USAGE="[SOURCE=<pattern>] [STAGES=<int>] [SCALE=<integer>] [MAX_OFFSET=<integer>] [JOIN_STEP_SIZE=<integer>] [LOG_MATRICES={bool|bool[]|int[]}] $0 START STOP"
+
+
+EXIT_CODE=1
+if [ "$#" -lt 2 ]; then
+    echo "Wrong number of arguments."
+    echo "Usage:"
+    echo $USAGE
+    exit $EXIT_CODE
+fi
+((++EXIT_CODE))
 
 START=$1
 STOP=$2
@@ -11,14 +22,6 @@ SCALE=${SCALE:-0}
 MAX_OFFSET=${MAX_OFFSET:-0}
 JOIN_STEP_SIZE=${JOIN_STEP_SIZE:-$(($STOP-$START))}
 LOG_MATRICES=${LOG_MATRICES:-false}
-
-if [ -d mask ]; then
-    DEFAULT_MASK=$(realpath mask)"/%04d.tif"
-else
-    DEFAULT_MASK=""
-fi
-
-MASK=${MASK:-$DEFAULT_MASK}
 
 WIDTH=$(identify -ping -format '%W' `printf "$SOURCE" $START`)
 HEIGHT=$(identify -ping -format '%H' `printf "$SOURCE" $START`)
@@ -75,6 +78,6 @@ mkdir $TARGET_DIR
 OUT=$(realpath $TARGET_DIR/out)
 sed -i \
     -e "s#START#$START#" -e "s#STOP#$STOP#" -e "s#TARGET#$OUT#" -e "s#SOURCE#$SOURCE#" -e "s#OPTS#${OPTS}#" \
-    -e "s#MASK#$MASK#" -e "s#SCALE#$SCALE#" -e "s#LOG_MATRICES#$LOG_MATRICES#" -e "s#JOIN_STEP_SIZE#$JOIN_STEP_SIZE#" \
+    -e "s#SCALE#$SCALE#" -e "s#LOG_MATRICES#$LOG_MATRICES#" -e "s#JOIN_STEP_SIZE#$JOIN_STEP_SIZE#" \
     $TARGET_DIR/config.json
 chmod u+w $TARGET_DIR/config.json
