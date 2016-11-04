@@ -14,18 +14,22 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
+
+import java.io.File;
+import java.nio.file.Files;
+
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.inference.InferFromMatrix;
 import org.janelia.thickness.inference.Options;
-import org.janelia.thickness.inference.fits.CorrelationFitAverage;
+import org.janelia.thickness.inference.fits.AbstractCorrelationFit;
+import org.janelia.thickness.inference.fits.GlobalCorrelationFitAverage;
+import org.janelia.thickness.inference.fits.LocalCorrelationFitAverage;
 import org.janelia.thickness.inference.visitor.LazyVisitor;
 import org.janelia.thickness.inference.visitor.Visitor;
-import org.janelia.thickness.mediator.OpinionMediatorWeightedAverage;
 import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.io.IO;
 import scala.Tuple2;
 
 public class SparkInference {
@@ -64,7 +68,9 @@ public class SparkInference {
 //            if ( t._1().equals( Utility.tuple2( 10, 0 ) ) )
 //                new FileSaver( new ImagePlus( "", t._2()._1().rebuild() ) ).saveAsTiff("/groups/saalfeld/home/hanslovskyp/matrix-spark.tif");
             Img<FloatType> matrix = ImageJFunctions.wrapFloat(new ImagePlus("", t._2()._1().rebuild()));
-            InferFromMatrix inference = new InferFromMatrix(new CorrelationFitAverage(), new OpinionMediatorWeightedAverage());
+            AbstractCorrelationFit corrFit = 
+            		options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverage() : new LocalCorrelationFitAverage( (int) matrix.dimension(1), options );;
+            InferFromMatrix inference = new InferFromMatrix( corrFit );
             // InferFromMatrix inference = new InferFromMatrix(LocalizedCorrelationFitConstant.generateTranslation1D(), new OpinionMediatorWeightedAverage());
 //            Visitor visitor = new Visitor() {
 //                @Override
@@ -85,7 +91,7 @@ public class SparkInference {
                     }
                 }
                 String path = String.format( pattern, t._1().toString() );
-                IO.createDirectoryForFile( path );
+                Files.createDirectories(new File(path).getParentFile().toPath() );
                 new FileSaver( ImageJFunctions.wrapFloat( img, "" ) ).saveAsTiff( path );
                 return Utility.tuple2(t._1(), coordinates);}
             catch( NotEnoughDataPointsException e )
@@ -114,15 +120,16 @@ public class SparkInference {
         public <T extends RealType<T>> void act(
                 int iteration,
                 RandomAccessibleInterval<T> matrix,
+				RandomAccessibleInterval<T> scaledMatrix,
                 double[] lut,
                 int[] permutation,
                 int[] inversePermutation,
                 double[] multipliers,
-                double[] weights,
                 RandomAccessibleInterval<double[]> estimatedFit) {
             Cursor<DoubleType> current = Views.flatIterable(Views.hyperSlice(img, 1, iteration)).cursor();
             for ( int z = 0; current.hasNext(); ++z )
                 current.next().set( lut[z] );
         }
+
     }
 }

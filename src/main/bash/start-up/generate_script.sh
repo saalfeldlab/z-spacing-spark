@@ -7,7 +7,6 @@ START=$1
 STOP=$2
 SOURCE=${SOURCE:-$(realpath data)"/%04d.tif"}
 STAGES=${STAGES:-1}
-MAX_OFFSET=${MAX_OFFSET:-0}
 
 if [ -d mask ]; then
     DEFAULT_MASK=$(realpath mask)"/%04d.tif"
@@ -33,14 +32,6 @@ while [ $STAGE -lt $STAGES ]; do
     \"radii\": [\n \
         $(($WIDTH/2+1)),\n \
         $(($HEIGHT/2+1))\n \
-    ],\n \
-    \"maxOffsets\": [\n \
-        $MAX_OFFSET,\n \
-        $MAX_OFFSET\n \
-    ],\n \
-    \"correlationBlockRadii\": [\n \
-        $(($WIDTH/3)),\n \
-        $(($HEIGHT/3))\n \
     ]"
 
     if [ $STAGE -gt 0 ]; then

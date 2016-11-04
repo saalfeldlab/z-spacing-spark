@@ -18,7 +18,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Created by hanslovskyp on 9/25/15.
+ * @author Philipp Hanslovsky
  */
 public class MatrixGenerationFromImagePairs {
 

@@ -31,14 +31,16 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransform;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.io.IO;
 
 import scala.Tuple2;
 
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Files;
 
 /**
- * Created by hanslovskyp on 10/2/15.
+ * @author Philipp Hanslovsky
  */
 public class Render {
 
@@ -82,7 +84,7 @@ public class Render {
         return target;
     }
 
-    public static void main(String[] args) throws FileNotFoundException, InterruptedException {
+    public static void main(String[] args) throws InterruptedException, IOException {
 
 //        String path = args[0];
 
@@ -213,14 +215,14 @@ public class Render {
             Utility.transform( Views.extendValue( stack, new FloatType(Float.NaN ) ), resultImg, correctlySizedLut );
             System.out.println( "Transformed image." );
 
+            Files.createDirectories( new File( String.format( backwardTargetPath, 0 ) ).getParentFile().toPath() );
+            Files.createDirectories( new File( String.format( backwardRenderPath, 0 ) ).getParentFile().toPath() );
             for ( int z = 0; z < resultImg.dimension( 2 ); ++z )
             {
                 IntervalView<DoubleType> lutHS = Views.hyperSlice(correctlySizedLut, 2, z);
                 IntervalView<FloatType> resultHS = Views.hyperSlice(resultImg, 2, z);
                 String lutPath = String.format(backwardTargetPath, z);
                 String resultPath = String.format(backwardRenderPath, z);
-                IO.createDirectoryForFile( lutPath );
-                IO.createDirectoryForFile( resultPath );
                 new FileSaver( ImageJFunctions.wrapFloat( lutHS, "" ) ).saveAsTiff( lutPath );
                 new FileSaver( ImageJFunctions.wrapFloat( resultHS, "" ) ).saveAsTiff( resultPath );
             }

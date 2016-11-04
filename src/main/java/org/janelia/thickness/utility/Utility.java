@@ -32,13 +32,14 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.lut.LUTRealTransform;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
-import org.janelia.utility.io.IO;
 import scala.*;
 
+import java.io.File;
 import java.io.Serializable;
 import java.lang.Boolean;
 import java.lang.Float;
 import java.lang.Long;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -213,7 +214,7 @@ public class Utility {
             K index = t._1();
             ImagePlus imp = new ImagePlus( "", t._2().rebuild() );
             String path = String.format( outputFormat, index );
-            IO.createDirectoryForFile(path);
+            Files.createDirectories(new File(path).getParentFile().toPath());
             boolean success = new FileSaver( imp ).saveAsTiff( path );
             return Utility.tuple2( index, success );
         }
@@ -238,7 +239,7 @@ public class Utility {
                     new ConvertedRandomAccessibleInterval<DoubleType, FloatType>(img, new RealFloatConverter<DoubleType>(), new FloatType());
             ImagePlus imp = ImageJFunctions.wrap( floats, "" );
             String path = String.format( outputFormat, index );
-            IO.createDirectoryForFile(path);
+            Files.createDirectories(new File(path).getParentFile().toPath());
             boolean success = new FileSaver( imp ).saveAsTiff( path );
             return Utility.tuple2( index, success );
         }

@@ -13,10 +13,11 @@ import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.utility.io.IO;
 import scala.Tuple2;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -213,7 +214,7 @@ public class ZSpacing {
             // log success and failure
             String successAndFailurePath = String.format(outputFolder, i) + "/successAndFailure.tif";
             ByteProcessor ip = LogSuccessAndFailure.log(sc, result, currentDim);
-            IO.createDirectoryForFile( successAndFailurePath );
+            Files.createDirectories(new File( successAndFailurePath).getParentFile().toPath() );
             System.out.println("Wrote status image? " + new FileSaver(new ImagePlus("", ip)).saveAsTiff(successAndFailurePath));
 
             ColumnsAndSections columnsAndSections = new ColumnsAndSections(currentDim, size);
