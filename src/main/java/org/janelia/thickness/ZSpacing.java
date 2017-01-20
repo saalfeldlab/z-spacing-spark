@@ -164,6 +164,7 @@ public class ZSpacing
 					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateCoordinateIntoThisBlockCoordinates( n ) ) );
 				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim, new SparkInterpolation.MatchCoordinates.NearestNeighborMatcher() );
 			}
+			coordinates.unpersist();
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
 			matrices.cache();
@@ -171,7 +172,9 @@ public class ZSpacing
 			System.out.println( "Calculated " + matrices.count() + " matrices" );
 
 			final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
-			final List< Tuple2< Tuple2< Integer, Integer >, Boolean > > successMatrices = matrices.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) ).collect();
+			// Write matrices
+			// matrices.mapToPair( new Utility.WriteToFormatString< Tuple2<
+			// Integer, Integer > >( outputFormatMatrices ) ).collect();
 
 			System.out.println( "Before inference." );
 			System.out.println( options[ i ].toString() + " " + options[ i ].comparisonRange );
@@ -180,8 +183,11 @@ public class ZSpacing
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > result = SparkInference.inferCoordinates( sc, matrices, currentCoordinates, options[ i ], lutPattern );
 			result.cache();
+			final long t0Inference = System.nanoTime();
 			result.count();
-			System.out.println( "Inference done!" );
+			final long t1Inference = System.nanoTime();
+			final long dtInference = t1Inference - t0Inference;
+			System.out.println( "Inference done! (" + dtInference + "ns)" );
 
 			// last occurence of matrices, unpersist!
 			matrices.unpersist();
@@ -210,6 +216,7 @@ public class ZSpacing
 					} );
 
 			coordinates = columnsAndSections.sectionsToColumns( sc, diffused );
+			coordinates.cache();
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).cache();
 			final JavaPairRDD< Integer, DPTuple > backwardImages = columnsAndSections.columnsToSections( sc, backward );
 
@@ -218,9 +225,10 @@ public class ZSpacing
 
 			final String outputFormatBackward = String.format( outputFolder, i ) + "/backward/%04d.tif";
 			final List< Tuple2< Integer, Boolean > > successBackward = backwardImages.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormatBackward ) ).collect();
-			//
-			final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
-			final List< Tuple2< Tuple2< Integer, Integer >, Boolean > > successTransformedMatrices = matrices.join( backward ).mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) ).collect();
+
+			// write transformed matrices
+			//			final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
+			//			matrices.join( backward ).mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) ).collect();
 
 			// last occurence of backward, unpersist!
 			backward.unpersist();

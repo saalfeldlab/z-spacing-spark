@@ -128,16 +128,7 @@ public class JoinFromList
 		@Override
 		public Iterator< Tuple2< T, U > > call( final Tuple2< T, L > t ) throws Exception
 		{
-			final Iterable< Tuple2< T, U > > iterable = new Iterable< Tuple2< T, U > >()
-			{
-				@Override
-				public Iterator< Tuple2< T, U > > iterator()
-				{
-					return new MyIterator( t._2().iterator(), t._1() );
-				}
-
-			};
-			return iterable.iterator();
+			return new MyIterator( t._2().iterator(), t._1() );
 		}
 	}
 
