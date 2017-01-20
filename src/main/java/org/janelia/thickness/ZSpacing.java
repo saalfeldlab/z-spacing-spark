@@ -10,12 +10,13 @@ import java.util.List;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.Function;
-import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
+import org.kohsuke.args4j.Argument;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
@@ -23,11 +24,58 @@ import ij.process.ByteProcessor;
 import loci.formats.FormatException;
 import scala.Tuple2;
 
+/**
+ *
+ * @author Philipp Hanslovsky
+ *
+ */
 public class ZSpacing
 {
 
+	private static class Parameters
+	{
+
+		@Argument( metaVar = "CONFIG_PATH" )
+		private String configPath;
+
+		private boolean parsedSuccessfully;
+	}
+
 	public static void main( final String[] args ) throws FormatException, IOException
 	{
+
+		final Parameters p = new Parameters();
+		final CmdLineParser parser = new CmdLineParser( p );
+		try
+		{
+			parser.parseArgument( args );
+			p.parsedSuccessfully = true;
+		}
+		catch ( final CmdLineException e )
+		{
+			System.err.println( e.getMessage() );
+			parser.printUsage( System.err );
+			p.parsedSuccessfully = false;
+		}
+
+		if ( p.parsedSuccessfully )
+
+		{
+			final SparkConf conf = new SparkConf()
+					.setAppName( "ZSpacing" )
+					.set( "spark.network.timeout", "600" )
+					.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+					.set( "spark.kryo.registrator", KryoSerialization.Registrator.class.getName() );
+
+			final JavaSparkContext sc = new JavaSparkContext( conf );
+			final ScaleOptions scaleOptions = ScaleOptions.createFromFile( p.configPath );
+
+			run( sc, scaleOptions );
+
+			sc.close();
+		}
+
+
 		final SparkConf conf = new SparkConf().setAppName( "ZSpacing" );
 
 		final JavaSparkContext sc = new JavaSparkContext( conf );
@@ -43,33 +91,15 @@ public class ZSpacing
 	{
 
 		final String sourcePattern = scaleOptions.source;
-
 		final String root = scaleOptions.target;
 		final String outputFolder = root + "/%02d";
 		final int imageScaleLevel = scaleOptions.scale;
-
 		final int start = scaleOptions.start;
 		final int stop = scaleOptions.stop;
 		final int size = stop - start;
 
 		final ArrayList< Integer > indices = Utility.arange( size );
-		final JavaPairRDD< Integer, FPTuple > sections = sc.parallelize( indices ).mapToPair( new PairFunction< Integer, Integer, Integer >()
-		{
-
-			@Override
-			public Tuple2< Integer, Integer > call( final Integer arg0 ) throws Exception
-			{
-				return Utility.tuple2( arg0, arg0 );
-			}
-		} ).sortByKey().map( new Function< Tuple2< Integer, Integer >, Integer >()
-		{
-
-			@Override
-			public Integer call( final Tuple2< Integer, Integer > arg0 ) throws Exception
-			{
-				return arg0._1();
-			}
-		} ).mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FPTuple > sections = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 
 		final FPTuple firstImg = sections.take( 1 ).get( 0 )._2();
 		final int width = firstImg.width;
@@ -85,8 +115,6 @@ public class ZSpacing
 
 		final int[][] radiiArray = scaleOptions.radii;
 		final int[][] stepsArray = scaleOptions.steps;
-		final int[][] correlationBlockRadiiArray = scaleOptions.correlationBlockRadii;
-		final int[][] maxOffsetsArray = scaleOptions.maxOffsets;
 		final Options[] options = scaleOptions.inference;
 
 		int maxRange = 0;
@@ -208,14 +236,7 @@ public class ZSpacing
 
 			final JavaPairRDD< Integer, DPTuple > diffused = coordinateSections
 					// TODO write something like diffusion: done?
-					.mapToPair( new PairFunction< Tuple2< Integer, DPTuple >, Integer, DPTuple >()
-					{
-						@Override
-						public Tuple2< Integer, DPTuple > call( final Tuple2< Integer, DPTuple > t ) throws Exception
-						{
-							return Utility.tuple2( t._1(), FillHoles.fill( t._2().clone() ) );
-						}
-					} );
+					.mapToPair( t -> Utility.tuple2( t._1(), FillHoles.fill( t._2().clone() ) ) );
 
 			coordinates = columnsAndSections.sectionsToColumns( sc, diffused );
 			coordinates.cache();

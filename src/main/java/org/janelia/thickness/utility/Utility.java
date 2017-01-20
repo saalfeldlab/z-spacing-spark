@@ -13,6 +13,7 @@ import java.util.concurrent.Executors;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
@@ -127,13 +128,13 @@ public class Utility
 		@Override
 		public Tuple2< V, K > call( final Tuple2< K, V > t ) throws Exception
 		{
-			return tuple2( t._2(), t._1() );
+			return t.swap();
 		}
 	}
 
 	/**
 	 * rdd in: ( K -> G,V ) rdd out: ( G -> K,V )
-	 * 
+	 *
 	 * @param <K>
 	 * @param <G>
 	 * @param <V>
@@ -683,17 +684,82 @@ public class Utility
 		return target;
 	}
 
-	// public static class ColumnsToSections implements PairFunction< Tuple2<
-	// Tuple2< Integer, Integer >, double[] >, Integer, DPTuple >
-	// {
-	//
-	// private final int[] dim;
-	//
-	// @Override
-	// public Tuple2<Integer, DPTuple> call(Tuple2<Tuple2<Integer, Integer>,
-	// double[]> tuple2Tuple2) throws Exception {
-	// return null;
-	// }
-	// }
+	/**
+	 * Transform RDD into PairRDD with same value as key:
+	 *
+	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+	 *
+	 * @param <T>
+	 */
+	public static class Duplicate< T > implements PairFunction< T, T, T >
+	{
 
+		/**
+		 *
+		 */
+		private static final long serialVersionUID = -2287251828070115337L;
+
+		@Override
+		public Tuple2< T, T > call( final T t ) throws Exception
+		{
+			return Utility.tuple2( t, t );
+		}
+
+	}
+
+	/**
+	 *
+	 * Accept all entries with an integer key k: start &lt;= k &lt; stop
+	 *
+	 * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
+	 *
+	 * @param <V>
+	 *            value
+	 */
+	public static class FilterRange< V > implements Function< Tuple2< Integer, V >, Boolean >
+	{
+
+		/**
+		 *
+		 */
+		private static final long serialVersionUID = -2112302031715609728L;
+
+		private final long start;
+
+		private final long stop;
+
+		public FilterRange( final long start, final long stop )
+		{
+			this.start = start;
+			this.stop = stop;
+		}
+
+		@Override
+		public Boolean call( final Tuple2< Integer, V > t ) throws Exception
+		{
+			final int unboxed = t._1().intValue();
+			return unboxed >= start && unboxed < stop;
+		}
+	}
+
+	/**
+	 * swap keys K1, K2 for key K1 pointing to a key-value pair K2, V
+	 *
+	 * rdd in: ( K1 -> K2,V ) rdd out: ( K2 -> K1,V )
+	 *
+	 * @param <K1>
+	 * @param <K2>
+	 * @param <V>
+	 */
+	public static class SwapKeyKey< K1, K2, V > implements PairFunction< Tuple2< K1, Tuple2< K2, V > >, K2, Tuple2< K1, V > >
+	{
+		private static final long serialVersionUID = -4848162685420711301L;
+
+		@Override
+		public Tuple2< K2, Tuple2< K1, V > > call( final Tuple2< K1, Tuple2< K2, V > > t ) throws Exception
+		{
+			final Tuple2< K2, V > t2 = t._2();
+			return Utility.tuple2( t2._1(), Utility.tuple2( t._1(), t2._2() ) );
+		}
+	}
 }
