@@ -42,7 +42,9 @@ public class ScaleOptions
 
 	public final boolean[] logMatrices;
 
-	public ScaleOptions( final int[][] steps, final int[][] radii, final int[][] correlationBlockRadii, final int[][] maxOffsets, final Options[] inference, final int scale, final String source, final String mask, final String target, final int start, final int stop, final boolean[] logMatrices )
+	public final int joinStepSize;
+
+	public ScaleOptions( final int[][] steps, final int[][] radii, final int[][] correlationBlockRadii, final int[][] maxOffsets, final Options[] inference, final int scale, final String source, final String mask, final String target, final int start, final int stop, final boolean[] logMatrices, final int joinStepSize )
 	{
 		super();
 		this.steps = steps;
@@ -57,6 +59,7 @@ public class ScaleOptions
 		this.start = start;
 		this.stop = stop;
 		this.logMatrices = logMatrices;
+		this.joinStepSize = joinStepSize;
 	}
 
 	@Override
@@ -155,7 +158,9 @@ public class ScaleOptions
 		else
 			Arrays.fill( logMatrices, false );
 
-		return new ScaleOptions( steps, radii, correlationBlockRadii, maxOffsets, opts, scale, source, mask, target, start, stop, logMatrices );
+		final int joinStepSize = Math.max( json.has( "joinStepSize" ) ? json.get( "joinStepSize" ).getAsInt() : 0, 2 * opts[ 0 ].comparisonRange );
+
+		return new ScaleOptions( steps, radii, correlationBlockRadii, maxOffsets, opts, scale, source, mask, target, start, stop, logMatrices, joinStepSize );
 		//		System.out.println( defaultOptionsJson.toString() );
 	}
 

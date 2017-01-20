@@ -66,45 +66,33 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sections = sectionPairs
 				.filter( new DefaultMatrixGenerator.SelectInRange< Tuple2< FloatProcessor, FloatProcessor > >( range ) );
 
-		System.out.println( "sections: " + sections.count() );
-
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > maxProjections = sections
 				.mapToPair( new FPToSimilarities< Tuple2< Integer, Integer > >(
 						maxOffset,
 						correlationBlockRadius ) )
-				.cache();
+				;
 
 		System.out.println( "maxOffset=" + Arrays.toString( maxOffset ) );
 		System.out.println( "correlationBlockRadius=" + Arrays.toString( correlationBlockRadius ) );
 
-		System.out.println( "maxProjections: " + maxProjections.count() );
-
 		final JavaPairRDD< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > averages = maxProjections
 				.mapToPair( new AverageBlocks< Tuple2< Integer, Integer > >( blockRadius, stepSize ) )
-				.cache();
-
-		System.out.println( "averages: " + averages.count() );
+				;
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Tuple2< Integer, Integer >, Double > > flatAverages = averages
 				.flatMapToPair(
 						new Utility.FlatmapMap< Tuple2< Integer, Integer >, Tuple2< Integer, Integer >, Double, HashMap< Tuple2< Integer, Integer >, Double > >() )
-				.cache();
-
-		System.out.println( "flatAverages: " + flatAverages.count() );
+				;
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > averagesIndexedByXYTuples = flatAverages
 				.mapToPair( new Utility.SwapKeyKey< Tuple2< Integer, Integer >, Tuple2< Integer, Integer >, Double >() )
 				.mapToPair( new Utility.ValueAsMap< Tuple2< Integer, Integer >, Tuple2< Integer, Integer >, Double >() )
-				.cache();
-
-		averagesIndexedByXYTuples.count();
+				;
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = averagesIndexedByXYTuples
 				.reduceByKey( new Utility.ReduceMapsByUnion< Tuple2< Integer, Integer >, Double, HashMap< Tuple2< Integer, Integer >, Double > >() )
 				.mapToPair( new DefaultMatrixGenerator.MapToFloatProcessor( size, startIndex ) )
-				.cache();
-
-		matrices.count();
+		;
 
 		return matrices;
 

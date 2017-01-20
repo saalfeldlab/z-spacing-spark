@@ -6,6 +6,7 @@ import java.util.HashMap;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.storage.StorageLevel;
 import org.janelia.thickness.JoinFromList;
 import org.janelia.thickness.utility.Utility;
 
@@ -20,8 +21,6 @@ public class ComputeMatricesChunked
 {
 	private final JavaSparkContext sc;
 
-	private final JavaPairRDD< Integer, FloatProcessor > files;
-
 	private final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > > pairs;
 
 	private final ArrayList< Tuple5< Integer, Integer, Integer, Integer, Integer > > bounds;
@@ -32,22 +31,25 @@ public class ComputeMatricesChunked
 
 	private final int[] dim;
 
+	private final long nImages;
+
 	public ComputeMatricesChunked(
 			final JavaSparkContext sc,
 			final JavaPairRDD< Integer, FloatProcessor > files,
 			final int stepSize,
 			final int maxRange,
 			final int[] dim,
-			final boolean ensurePersistence )
+			final long nImages,
+			final StorageLevel pairPersistenceLevel )
 	{
 		this.sc = sc;
-		this.files = files;
 		this.chunkStepSize = stepSize;
 		this.maxRange = maxRange;
 
 		this.pairs = new ArrayList<>();
 		this.bounds = new ArrayList<>();
 		this.dim = dim;
+		this.nImages = nImages;
 
 		final int stop = ( int ) files.count();
 		for ( int z = 0; z < stop; z += this.chunkStepSize )
@@ -55,7 +57,7 @@ public class ComputeMatricesChunked
 			final int lower = Math.max( z - this.maxRange, 0 );
 			final int upper = Math.min( z + this.maxRange + stepSize, stop );
 			final int size = upper - lower;
-			final JavaPairRDD< Integer, FloatProcessor > rdd = files.filter( new Utility.FilterRange< FloatProcessor >( lower, upper ) ).cache();
+			final JavaPairRDD< Integer, FloatProcessor > rdd = files.filter( new Utility.FilterRange< FloatProcessor >( lower, upper ) );
 			final HashMap< Integer, ArrayList< Integer > > keyPairList = new HashMap< >();
 			for ( int i = lower; i < upper; ++i )
 			{
@@ -65,9 +67,7 @@ public class ComputeMatricesChunked
 				keyPairList.put( i, al );
 			}
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairs =
-					JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ) ).cache();
-			if ( ensurePersistence )
-				pairs.count();
+					JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ) ).persist( pairPersistenceLevel );
 			this.pairs.add( pairs );
 			this.bounds.add( Utility.tuple5( z, Math.min( z + stepSize, stop ), z - lower, lower, size ) );
 		}
@@ -80,18 +80,15 @@ public class ComputeMatricesChunked
 			final int[] blockRadius )
 	{
 		final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > > rdds = new ArrayList<>();
-		final int maxIndex = ( int ) ( files.count() - 1 );
+		final int maxIndex = ( int ) ( this.nImages - 1 );
 		final int stop = maxIndex + 1;
 		for ( int i = 0; i < this.pairs.size(); ++i )
 		{
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pair = this.pairs.get( i );
 			final MatrixGenerator matrixGenerator = factory.create();
-			//			final MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs( dim );
-			//			final TranslationInvariantMatrixGenerator matrixGenerator = new TranslationInvariantMatrixGenerator( blockRadius, new int[] { 0, 0 } );
 			final Tuple5< Integer, Integer, Integer, Integer, Integer > bound = this.bounds.get( i );
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =
-					matrixGenerator.generateMatrices( sc, pair, blockRadius, stepSize, range, bound._4(), bound._5() ).cache();
-			System.out.println( "SmallerJoinTest: " + matrices.count() + " matrices." );
+					matrixGenerator.generateMatrices( sc, pair, blockRadius, stepSize, range, bound._4(), bound._5() );
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > strip =
 					matrices.mapToPair( new MatrixToStrip< Tuple2< Integer, Integer > >( bound._3(), Math.min( chunkStepSize, stop - bound._1() ), range ) );
 			rdds.add( strip );

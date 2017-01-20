@@ -12,7 +12,6 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 
 import ij.process.FloatProcessor;
@@ -27,13 +26,13 @@ public class MatrixGenerationFromImagePairs
 	private final JavaSparkContext sc;
 
 	// assume only one of (i,j),(j,i) is present
-	private JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > > sectionPairs;
+	private JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sectionPairs;
 
 	private final int[] dim;
 
 	private final int size;
 
-	public MatrixGenerationFromImagePairs( final JavaSparkContext sc, final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > > sectionPairs, final int[] dim, final int size )
+	public MatrixGenerationFromImagePairs( final JavaSparkContext sc, final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sectionPairs, final int[] dim, final int size )
 	{
 		this.sc = sc;
 		this.sectionPairs = sectionPairs;
@@ -41,10 +40,10 @@ public class MatrixGenerationFromImagePairs
 		this.size = size;
 	}
 
-	public JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > generateMatrices( final int[] stride, final int[] correlationBlockRadius, final int range )
+	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > generateMatrices( final int[] stride, final int[] correlationBlockRadius, final int range )
 	{
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > > pairsWithinRange = sectionPairs.filter( new SelectInRange< Tuple2< FPTuple, FPTuple > >( range ) );
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairsWithinRange = sectionPairs.filter( new SelectInRange< Tuple2< FloatProcessor, FloatProcessor > >( range ) );
 		pairsWithinRange.persist( sectionPairs.getStorageLevel() );
 		sectionPairs.unpersist();
 		sectionPairs = pairsWithinRange;
@@ -56,7 +55,7 @@ public class MatrixGenerationFromImagePairs
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > pairwiseCorrelations = pairsWithinRange.mapToPair( new SubSectionCorrelations( coordinates, dim ) );
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices = pairwiseCorrelations.flatMapToPair( new ExchangeIndexOrder() ).reduceByKey( new ReduceMaps() ).mapToPair( new MapToFPTuple( size ) );
+		final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = pairwiseCorrelations.flatMapToPair( new ExchangeIndexOrder() ).reduceByKey( new ReduceMaps() ).mapToPair( new MapToFloatProcessor( size ) );
 
 		return matrices;
 	}
@@ -80,7 +79,7 @@ public class MatrixGenerationFromImagePairs
 		}
 	}
 
-	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
+	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
 	{
 
 		private final Broadcast< ArrayList< CorrelationBlocks.Coordinate > > coordinates;
@@ -94,10 +93,10 @@ public class MatrixGenerationFromImagePairs
 		}
 
 		@Override
-		public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > call( final Tuple2< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > > t ) throws Exception
+		public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > call( final Tuple2< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
 		{
-			final FloatProcessor fp1 = t._2()._1().rebuild();
-			final FloatProcessor fp2 = t._2()._2().rebuild();
+			final FloatProcessor fp1 = t._2()._1();
+			final FloatProcessor fp2 = t._2()._2();
 			final int[] min = new int[] { 0, 0 };
 			final int[] currentStart = new int[ 2 ];
 			final int[] currentStop = new int[ 2 ];
@@ -136,37 +135,30 @@ public class MatrixGenerationFromImagePairs
 			final Tuple2< Integer, Integer > zz = t._1();
 			final HashMap< Tuple2< Integer, Integer >, Double > corrs = t._2();
 
-			final Iterable< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > > it = new Iterable< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > >()
+			final Iterable< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > > it = () -> new Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > >()
 			{
+				Iterator< Map.Entry< Tuple2< Integer, Integer >, Double > > it = corrs.entrySet().iterator();
+
 				@Override
-				public Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > > iterator()
+				public boolean hasNext()
 				{
-					return new Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > >()
-					{
-						Iterator< Map.Entry< Tuple2< Integer, Integer >, Double > > it = corrs.entrySet().iterator();
+					return it.hasNext();
+				}
 
-						@Override
-						public boolean hasNext()
-						{
-							return it.hasNext();
-						}
+				@Override
+				public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > next()
+				{
+					final Map.Entry< Tuple2< Integer, Integer >, Double > nextCorr = it.next();
+					final Tuple2< Integer, Integer > xy = nextCorr.getKey();
+					final HashMap< Tuple2< Integer, Integer >, Double > result = new HashMap<>();
+					result.put( zz, nextCorr.getValue() );
+					return Utility.tuple2( xy, result );
+				}
 
-						@Override
-						public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > next()
-						{
-							final Map.Entry< Tuple2< Integer, Integer >, Double > nextCorr = it.next();
-							final Tuple2< Integer, Integer > xy = nextCorr.getKey();
-							final HashMap< Tuple2< Integer, Integer >, Double > result = new HashMap<>();
-							result.put( zz, nextCorr.getValue() );
-							return Utility.tuple2( xy, result );
-						}
-
-						@Override
-						public void remove()
-						{
-							throw new UnsupportedOperationException();
-						}
-					};
+				@Override
+				public void remove()
+				{
+					throw new UnsupportedOperationException();
 				}
 			};
 			return it.iterator();
@@ -183,18 +175,18 @@ public class MatrixGenerationFromImagePairs
 		}
 	}
 
-	public static class MapToFPTuple implements PairFunction< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >, Tuple2< Integer, Integer >, FPTuple >
+	public static class MapToFloatProcessor implements PairFunction< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >, Tuple2< Integer, Integer >, FloatProcessor >
 	{
 
 		private final int size;
 
-		public MapToFPTuple( final int size )
+		public MapToFloatProcessor( final int size )
 		{
 			this.size = size;
 		}
 
 		@Override
-		public Tuple2< Tuple2< Integer, Integer >, FPTuple > call( final Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > t ) throws Exception
+		public Tuple2< Tuple2< Integer, Integer >, FloatProcessor > call( final Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > t ) throws Exception
 		{
 			final FloatProcessor result = new FloatProcessor( size, size );
 			result.add( Double.NaN );
@@ -209,7 +201,7 @@ public class MatrixGenerationFromImagePairs
 				result.setf( x, y, val );
 				result.setf( y, x, val );
 			}
-			return Utility.tuple2( t._1(), new FPTuple( result ) );
+			return Utility.tuple2( t._1(), result );
 		}
 	}
 }

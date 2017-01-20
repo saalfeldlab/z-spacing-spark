@@ -10,9 +10,11 @@ import java.util.List;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.storage.StorageLevel;
 import org.janelia.thickness.inference.Options;
+import org.janelia.thickness.similarity.ComputeMatricesChunked;
+import org.janelia.thickness.similarity.DefaultMatrixGenerator;
 import org.janelia.thickness.utility.DPTuple;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
@@ -21,6 +23,7 @@ import org.kohsuke.args4j.CmdLineParser;
 import ij.ImagePlus;
 import ij.io.FileSaver;
 import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
 import loci.formats.FormatException;
 import scala.Tuple2;
 
@@ -99,11 +102,11 @@ public class ZSpacing
 		final int size = stop - start;
 
 		final ArrayList< Integer > indices = Utility.arange( size );
-		final JavaPairRDD< Integer, FPTuple > sections = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FloatProcessor > sections = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 
-		final FPTuple firstImg = sections.take( 1 ).get( 0 )._2();
-		final int width = firstImg.width;
-		final int height = firstImg.height;
+		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2();
+		final int width = firstImg.getWidth();
+		final int height = firstImg.getHeight();
 
 		final double[] startingCoordinates = new double[ size ];
 		for ( int i = 0; i < size; ++i )
@@ -129,11 +132,13 @@ public class ZSpacing
 		for ( int i = 0; i < size; ++i )
 			indexPairs.put( i, Utility.arange( i + 1, Math.min( i + maxRange + 1, size ) ) );
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, FPTuple > > sectionPairs = JoinFromList.projectOntoSelf( sections, sc.broadcast( indexPairs ) );
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sectionPairs = JoinFromList.projectOntoSelf( sections, sc.broadcast( indexPairs ) );
 		sectionPairs.cache();
 		sectionPairs.count();
 
 		final MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs( sc, sectionPairs, dim, size );
+
+		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, sections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
@@ -162,22 +167,8 @@ public class ZSpacing
 			for ( final CorrelationBlocks.Coordinate xy : xyCoordinatesLocalAndWorld )
 				xyCoordinates.add( xy.getLocalCoordinates() );
 
-			// min and max of previous step
-			final Tuple2< Integer, Integer > xMinMax;
-			final Tuple2< Integer, Integer > yMinMax;
 			if ( xyCoordinates.size() == 0 )
-			{
-				final Tuple2< Integer, Integer > t = Utility.tuple2( currentOffset[ 0 ], currentOffset[ 1 ] );
-				xyCoordinates.add( t );
-
-				xMinMax = Utility.tuple2( previousOffset[ 0 ], previousOffset[ 0 ] );
-				yMinMax = Utility.tuple2( previousOffset[ 1 ], previousOffset[ 1 ] );
-			}
-			else
-			{
-				xMinMax = Utility.tuple2( 0, ( dim[ 0 ] - 2 * previousOffset[ 0 ] - 1 ) / previousStep[ 0 ] * previousStep[ 0 ] );
-				yMinMax = Utility.tuple2( 0, ( dim[ 1 ] - 2 * previousOffset[ 1 ] - 1 ) / previousStep[ 1 ] * previousStep[ 1 ] );
-			}
+				xyCoordinates.add( Utility.tuple2( currentOffset[ 0 ], currentOffset[ 1 ] ) );
 
 			JavaPairRDD< Tuple2< Integer, Integer >, double[] > currentCoordinates;
 			if ( i == 0 )
@@ -194,7 +185,8 @@ public class ZSpacing
 			}
 			coordinates.unpersist();
 
-			final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
+			//			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
+			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
 			matrices.cache();
 
 			System.out.println( "Calculated " + matrices.count() + " matrices" );

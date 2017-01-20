@@ -151,7 +151,7 @@ public class Utility
 		}
 	}
 
-	public static class StackOpener implements PairFunction< Integer, Integer, FPTuple >
+	public static class StackOpener implements PairFunction< Integer, Integer, FloatProcessor >
 	{
 
 		private static final long serialVersionUID = 6238343817172855495L;
@@ -168,7 +168,7 @@ public class Utility
 		}
 
 		@Override
-		public Tuple2< Integer, FPTuple > call( final Integer t ) throws Exception
+		public Tuple2< Integer, FloatProcessor > call( final Integer t ) throws Exception
 		{
 			final ImageProcessorReader reader = new ImageProcessorReader();
 			final ImageProcessor ip;
@@ -186,7 +186,7 @@ public class Utility
 				ip = reader.openProcessors( t )[ 0 ];
 			}
 			// assume only one channel right now
-			final FPTuple fp = new FPTuple( ip.convertToFloatProcessor() );
+			final FloatProcessor fp = ip.convertToFloatProcessor();
 			reader.close();
 			return Utility.tuple2( t, fp );
 		}
@@ -211,7 +211,7 @@ public class Utility
 		}
 	}
 
-	public static class WriteToFormatString< K > implements PairFunction< Tuple2< K, FPTuple >, K, Boolean >
+	public static class WriteToFormatString< K > implements PairFunction< Tuple2< K, FloatProcessor >, K, Boolean >
 	{
 		private static final long serialVersionUID = -4095400790949311166L;
 
@@ -224,10 +224,10 @@ public class Utility
 		}
 
 		@Override
-		public Tuple2< K, Boolean > call( final Tuple2< K, FPTuple > t ) throws Exception
+		public Tuple2< K, Boolean > call( final Tuple2< K, FloatProcessor > t ) throws Exception
 		{
 			final K index = t._1();
-			final ImagePlus imp = new ImagePlus( "", t._2().rebuild() );
+			final ImagePlus imp = new ImagePlus( "", t._2() );
 			final String path = String.format( outputFormat, index );
 			Files.createDirectories( new File( path ).getParentFile().toPath() );
 			final boolean success = new FileSaver( imp ).saveAsTiff( path );
@@ -262,7 +262,7 @@ public class Utility
 		}
 	}
 
-	public static class DownSample< K > implements PairFunction< Tuple2< K, FPTuple >, K, FPTuple >
+	public static class DownSample< K > implements PairFunction< Tuple2< K, FloatProcessor >, K, FloatProcessor >
 	{
 
 		private final int sampleScale;
@@ -279,10 +279,10 @@ public class Utility
 		private static final long serialVersionUID = -8634964011671381854L;
 
 		@Override
-		public Tuple2< K, FPTuple > call( final Tuple2< K, FPTuple > indexedFloatProcessor ) throws Exception
+		public Tuple2< K, FloatProcessor > call( final Tuple2< K, FloatProcessor > indexedFloatProcessor ) throws Exception
 		{
-			final FloatProcessor downsampled = ( FloatProcessor ) Downsampler.downsampleImageProcessor( indexedFloatProcessor._2().rebuild(), sampleScale );
-			return Utility.tuple2( indexedFloatProcessor._1(), new FPTuple( downsampled ) );
+			final FloatProcessor downsampled = ( FloatProcessor ) Downsampler.downsampleImageProcessor( indexedFloatProcessor._2(), sampleScale );
+			return Utility.tuple2( indexedFloatProcessor._1(), downsampled );
 		}
 
 	}
@@ -355,15 +355,15 @@ public class Utility
 	}
 
 	// takes backward transform from source to target
-	public static class Transform< K > implements PairFunction< Tuple2< K, Tuple2< FPTuple, double[] > >, K, FPTuple >
+	public static class Transform< K > implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, double[] > >, K, FloatProcessor >
 	{
 		@Override
-		public Tuple2< K, FPTuple > call( final Tuple2< K, Tuple2< FPTuple, double[] > > t ) throws Exception
+		public Tuple2< K, FloatProcessor > call( final Tuple2< K, Tuple2< FloatProcessor, double[] > > t ) throws Exception
 		{
-			final Tuple2< FPTuple, double[] > t2 = t._2();
-			final int width = t2._1().width;
-			final int height = t2._1().height;
-			final Img< FloatType > matrix = ImageJFunctions.wrapFloat( new ImagePlus( "", t2._1().rebuild() ) );
+			final Tuple2< FloatProcessor, double[] > t2 = t._2();
+			final int width = t2._1().getWidth();
+			final int height = t2._1().getHeight();
+			final Img< FloatType > matrix = ImageJFunctions.wrapFloat( new ImagePlus( "", t2._1() ) );
 			final float[] data = new float[ width * height ];
 			final ArrayImg< FloatType, FloatArray > transformed = ArrayImgs.floats( data, width, height );
 			final RealRandomAccessible< FloatType > source = Views.interpolate( Views.extendValue( matrix, new FloatType( Float.NaN ) ), new NLinearInterpolatorFactory< FloatType >() );
@@ -373,7 +373,7 @@ public class Utility
 			while ( tc.hasNext() )
 				tc.next().set( s.next() );
 
-			return Utility.tuple2( t._1(), new FPTuple( data, width, height ) );
+			return Utility.tuple2( t._1(), new FloatProcessor( width, height, data ) );
 		}
 	}
 
@@ -536,7 +536,7 @@ public class Utility
 		}
 	}
 
-	public static class LoadFileFromPattern implements PairFunction< Integer, Integer, FPTuple >
+	public static class LoadFileFromPattern implements PairFunction< Integer, Integer, FloatProcessor >
 	{
 
 		private final String pattern;
@@ -547,11 +547,11 @@ public class Utility
 		}
 
 		@Override
-		public Tuple2< Integer, FPTuple > call( final Integer k ) throws Exception
+		public Tuple2< Integer, FloatProcessor > call( final Integer k ) throws Exception
 		{
 			final String path = String.format( pattern, k.intValue() );
 			final FloatProcessor fp = new ImagePlus( path ).getProcessor().convertToFloatProcessor();
-			return Utility.tuple2( k, new FPTuple( fp ) );
+			return Utility.tuple2( k, fp );
 		}
 	}
 
@@ -660,22 +660,17 @@ public class Utility
 			final RealPoint p = new RealPoint( targetColumn3D.numDimensions() );
 
 			final SingleDimensionLUTRealTransformField transform = new SingleDimensionLUTRealTransformField( 3, 3, lutColumn3D );
-			callables.add( new Callable< Void >()
-			{
-				@Override
-				public Void call() throws Exception
+			callables.add( () -> {
+				final RealRandomAccess< T > ra = sourceColumn.realRandomAccess();
+				final Cursor< T > c = Views.flatIterable( targetColumn3D ).cursor();
+				while ( c.hasNext() )
 				{
-					final RealRandomAccess< T > ra = sourceColumn.realRandomAccess();
-					final Cursor< T > c = Views.flatIterable( targetColumn3D ).cursor();
-					while ( c.hasNext() )
-					{
-						final T t = c.next();
-						transform.apply( c, p );
-						ra.setPosition( p.getDoublePosition( 2 ), 0 );
-						t.set( ra.get() );
-					}
-					return null;
+					final T t = c.next();
+					transform.apply( c, p );
+					ra.setPosition( p.getDoublePosition( 2 ), 0 );
+					t.set( ra.get() );
 				}
+				return null;
 			} );
 		}
 		System.out.println( "Invoking all column jobs." );

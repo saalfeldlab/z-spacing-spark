@@ -10,18 +10,16 @@ import org.janelia.thickness.inference.fits.GlobalCorrelationFitAverage;
 import org.janelia.thickness.inference.fits.LocalCorrelationFitAverage;
 import org.janelia.thickness.inference.visitor.LazyVisitor;
 import org.janelia.thickness.inference.visitor.Visitor;
-import org.janelia.thickness.utility.FPTuple;
 import org.janelia.thickness.utility.Utility;
+import org.janelia.utility.MatrixStripConversion;
 
-import ij.ImagePlus;
+import ij.process.FloatProcessor;
 import mpicbg.models.NotEnoughDataPointsException;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.basictypeaccess.array.DoubleArray;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
@@ -31,15 +29,15 @@ import scala.Tuple2;
 public class SparkInference
 {
 
-	public static JavaPairRDD< Tuple2< Integer, Integer >, double[] > inferCoordinates( final JavaSparkContext sc, final JavaPairRDD< Tuple2< Integer, Integer >, FPTuple > matrices, final JavaPairRDD< Tuple2< Integer, Integer >, double[] > startingCoordinates, final Options options, final String pattern )
+	public static JavaPairRDD< Tuple2< Integer, Integer >, double[] > inferCoordinates( final JavaSparkContext sc, final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices, final JavaPairRDD< Tuple2< Integer, Integer >, double[] > startingCoordinates, final Options options, final String pattern )
 	{
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FPTuple, double[] > > matricesWithStartingCoordinates = matrices.join( startingCoordinates );
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, double[] > > matricesWithStartingCoordinates = matrices.join( startingCoordinates );
 		final JavaPairRDD< Tuple2< Integer, Integer >, double[] > result = matricesWithStartingCoordinates.mapToPair( new Inference< Tuple2< Integer, Integer > >( options, pattern ) );
 
 		return result;
 	}
 
-	public static class Inference< K > implements PairFunction< Tuple2< K, Tuple2< FPTuple, double[] > >, K, double[] >
+	public static class Inference< K > implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, double[] > >, K, double[] >
 	{
 		private static final long serialVersionUID = 8094812748656050753L;
 
@@ -55,12 +53,27 @@ public class SparkInference
 		}
 
 		@Override
-		public Tuple2< K, double[] > call( final Tuple2< K, Tuple2< FPTuple, double[] > > t ) throws Exception
+		public Tuple2< K, double[] > call( final Tuple2< K, Tuple2< FloatProcessor, double[] > > t ) throws Exception
 		{
 
 			//            if ( t._1().equals( Utility.tuple2( 10, 0 ) ) )
 			//                new FileSaver( new ImagePlus( "", t._2()._1().rebuild() ) ).saveAsTiff("/groups/saalfeld/home/hanslovskyp/matrix-spark.tif");
-			final Img< FloatType > matrix = ImageJFunctions.wrapFloat( new ImagePlus( "", t._2()._1().rebuild() ) );
+			final FloatProcessor fp = t._2()._1();
+			final int w = fp.getWidth();
+			final int h = fp.getHeight();
+			final float[] d = ( float[] ) fp.getPixels();
+			final RandomAccessibleInterval< FloatType > matrix = w == h ? ArrayImgs.floats( d, w, h ) : MatrixStripConversion.stripToMatrix( ArrayImgs.floats( d, w, h ), new FloatType( Float.NaN ) );
+
+			// return starting coordinates if one of the values is nan or zero
+			for ( final Cursor< FloatType > c = Views.iterable( matrix ).cursor(); c.hasNext(); )
+			{
+				final float val = c.next().get();
+				final long x = c.getLongPosition( 0 );
+				final long y = c.getLongPosition( 1 );
+				if ( Math.abs( x - y ) <= options.comparisonRange && ( Float.isNaN( val ) || val == 0.0f ) )
+					return Utility.tuple2( t._1(), t._2()._2() );
+			}
+
 			final AbstractCorrelationFit corrFit = options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverage() : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
 			final InferFromMatrix inference = new InferFromMatrix( corrFit );
 			// InferFromMatrix inference = new

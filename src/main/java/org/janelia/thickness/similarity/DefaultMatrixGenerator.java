@@ -64,8 +64,6 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairsWithinRange =
 				sectionPairs.filter( new SelectInRange< Tuple2< FloatProcessor, FloatProcessor > >( range ) );
-		pairsWithinRange.cache().count();
-		System.out.println( "Filtered pairs." );
 
 		final BlockCoordinates correlationBlocks = new BlockCoordinates( blockRadius, stepSize );
 
@@ -73,15 +71,11 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > pairwiseCorrelations = pairsWithinRange
 				.mapToPair( new SubSectionCorrelations( coordinates, dim ) );
-		pairwiseCorrelations.cache().count();
-		System.out.println( "Created subsections." );
 
 		final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = pairwiseCorrelations
 				.flatMapToPair( new ExchangeIndexOrder() )
 				.reduceByKey( new ReduceMaps() )
 				.mapToPair( new MapToFloatProcessor( size, startIndex ) );
-		matrices.cache().count();
-		System.out.println( "Calculated matrices." );
 
 		return matrices;
 	}
