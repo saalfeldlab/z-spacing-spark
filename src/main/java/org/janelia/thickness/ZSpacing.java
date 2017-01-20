@@ -171,10 +171,12 @@ public class ZSpacing
 
 			System.out.println( "Calculated " + matrices.count() + " matrices" );
 
-			final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
-			// Write matrices
-			// matrices.mapToPair( new Utility.WriteToFormatString< Tuple2<
-			// Integer, Integer > >( outputFormatMatrices ) ).collect();
+			if ( scaleOptions.logMatrices[ i ] )
+			{
+				final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
+				// Write matrices
+				matrices.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) ).collect();
+			}
 
 			System.out.println( "Before inference." );
 			System.out.println( options[ i ].toString() + " " + options[ i ].comparisonRange );
@@ -226,9 +228,12 @@ public class ZSpacing
 			final String outputFormatBackward = String.format( outputFolder, i ) + "/backward/%04d.tif";
 			final List< Tuple2< Integer, Boolean > > successBackward = backwardImages.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormatBackward ) ).collect();
 
-			// write transformed matrices
-			//			final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
-			//			matrices.join( backward ).mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) ).collect();
+			if ( scaleOptions.logMatrices[ i ] )
+			{
+				// write transformed matrices
+				final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
+				matrices.join( backward ).mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) ).collect();
+			}
 
 			// last occurence of backward, unpersist!
 			backward.unpersist();
