@@ -23,7 +23,7 @@ You might need to join the version and scala version of the spark-core dependenc
 <dependency>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-core_2.10</artifactId> <!-- change to scala version running on your cluster -->
-    <version>1.5.1</version> <!-- change to spark version running on your cluster -->
+    <version>2.0.1</version> <!-- change to spark version running on your cluster -->
     <scope>provided</scope> <!-- change to compile if run locally -->
 </dependency>
 ```
