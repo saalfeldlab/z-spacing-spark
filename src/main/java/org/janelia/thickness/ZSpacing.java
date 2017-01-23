@@ -2,11 +2,15 @@ package org.janelia.thickness;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -34,6 +38,12 @@ import scala.Tuple2;
  */
 public class ZSpacing
 {
+
+	public static Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	static
+	{
+		LOG.setLevel( Level.INFO );
+	}
 
 	private static class Parameters
 	{
@@ -93,6 +103,8 @@ public class ZSpacing
 	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions ) throws FormatException, IOException
 	{
 
+		final Logger log = LOG;// LogManager.getRootLogger();
+
 		final String sourcePattern = scaleOptions.source;
 		final String root = scaleOptions.target;
 		final String outputFolder = root + "/%02d";
@@ -139,9 +151,8 @@ public class ZSpacing
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
-			// IJ.log( "i=" + i );
-			System.out.println( "i=" + i );
-			System.out.println( "Options [" + i + "] = \n" + options[ i ].toString() );
+			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": i=" + i );
+			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Options [" + i + "] = \n" + options[ i ].toString() );
 
 			final long tStart = System.currentTimeMillis();
 
@@ -186,7 +197,7 @@ public class ZSpacing
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
 			matrices.cache();
 
-			System.out.println( "Calculated " + matrices.count() + " matrices" );
+			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Calculated " + matrices.count() + " matrices" );
 
 			if ( scaleOptions.logMatrices[ i ] )
 			{
@@ -194,9 +205,6 @@ public class ZSpacing
 				// Write matrices
 				matrices.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) ).collect();
 			}
-
-			System.out.println( "Before inference." );
-			System.out.println( options[ i ].toString() + " " + options[ i ].comparisonRange );
 
 			final String lutPattern = String.format( outputFolder, i ) + "/luts/%s.tif";
 
@@ -206,7 +214,7 @@ public class ZSpacing
 			result.count();
 			final long t1Inference = System.nanoTime();
 			final long dtInference = t1Inference - t0Inference;
-			System.out.println( "Inference done! (" + dtInference + "ns)" );
+			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Inference done! (" + dtInference + "ns) " );
 
 			// last occurence of matrices, unpersist!
 			matrices.unpersist();
@@ -215,7 +223,7 @@ public class ZSpacing
 			final String successAndFailurePath = String.format( outputFolder, i ) + "/successAndFailure.tif";
 			final ByteProcessor ip = LogSuccessAndFailure.log( sc, result, currentDim );
 			Files.createDirectories( new File( successAndFailurePath ).getParentFile().toPath() );
-			System.out.println( "Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
+			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
 
 			final ColumnsAndSections columnsAndSections = new ColumnsAndSections( currentDim, size );
 			final JavaPairRDD< Integer, DPTuple > coordinateSections = columnsAndSections.columnsToSections( sc, result );
@@ -254,7 +262,7 @@ public class ZSpacing
 				if ( s._2().booleanValue() )
 					continue;
 				++count;
-				System.out.println( "Failed to write forward image " + s._1().intValue() );
+				log.warn( MethodHandles.lookup().lookupClass().getSimpleName() + ": Failed to write forward image " + s._1().intValue() );
 			}
 
 			int countBackward = 0;
@@ -263,12 +271,12 @@ public class ZSpacing
 				if ( s._2().booleanValue() )
 					continue;
 				++countBackward;
-				System.out.println( "Failed to write backward image " + s._1().intValue() );
+				log.warn( MethodHandles.lookup().lookupClass().getSimpleName() + ": Failed to write backward image " + s._1().intValue() );
 			}
 
 			final long tEnd = System.currentTimeMillis();
 
-			System.out.println( "Successfully wrote " + ( success.size() - count ) + "/" + success.size() + " (forward) and " + ( successBackward.size() - countBackward ) + "/" + successBackward.size() + " (backward) " + "images at iteration " + i + String.format( " in %25dms", tEnd - tStart ) );
+			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Successfully wrote " + ( success.size() - count ) + "/" + success.size() + " (forward) and " + ( successBackward.size() - countBackward ) + "/" + successBackward.size() + " (backward) " + "images at iteration " + i + String.format( " in %25dms", tEnd - tStart ) );
 
 			times.add( Utility.tuple2( tStart, tEnd ) );
 		}
@@ -276,7 +284,7 @@ public class ZSpacing
 		for ( final Tuple2< Long, Long > t : times )
 		{
 			final long diff = t._2().longValue() - t._1().longValue();
-			System.out.println( String.format( "Run time for complete iteration: %25dms", diff ) );
+			log.info( String.format( "%s: Run time for complete iteration: %25dms", MethodHandles.lookup().lookupClass().getSimpleName(), diff ) );
 		}
 
 		sc.close();

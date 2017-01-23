@@ -1,8 +1,12 @@
 package org.janelia.thickness.similarity;
 
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
@@ -19,6 +23,13 @@ import scala.Tuple5;
  */
 public class ComputeMatricesChunked
 {
+
+	public static Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	static
+	{
+		LOG.setLevel( Level.INFO );
+	}
+
 	private final JavaSparkContext sc;
 
 	private final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > > pairs;
@@ -51,7 +62,9 @@ public class ComputeMatricesChunked
 		this.dim = dim;
 		this.nImages = nImages;
 
-		final int stop = ( int ) files.count();
+		final Logger log = LOG;// LogManager.getRootLogger();
+
+		final int stop = ( int ) nImages;
 		for ( int z = 0; z < stop; z += this.chunkStepSize )
 		{
 			final int lower = Math.max( z - this.maxRange, 0 );
@@ -71,6 +84,8 @@ public class ComputeMatricesChunked
 			this.pairs.add( pairs );
 			this.bounds.add( Utility.tuple5( z, Math.min( z + stepSize, stop ), z - lower, lower, size ) );
 		}
+		log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Join stepsize: " + stepSize );
+		log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Number of chunks: " + this.pairs.size() );
 	}
 
 	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > run(
@@ -79,6 +94,7 @@ public class ComputeMatricesChunked
 			final int[] stepSize,
 			final int[] blockRadius )
 	{
+
 		final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > > rdds = new ArrayList<>();
 		final int maxIndex = ( int ) ( this.nImages - 1 );
 		final int stop = maxIndex + 1;
