@@ -103,6 +103,8 @@ public class ZSpacing
 
 		final ArrayList< Integer > indices = Utility.arange( size );
 		final JavaPairRDD< Integer, FloatProcessor > sections = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		sections.cache();
+		sections.count();
 
 		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2();
 		final int width = firstImg.getWidth();
@@ -132,13 +134,8 @@ public class ZSpacing
 		for ( int i = 0; i < size; ++i )
 			indexPairs.put( i, Utility.arange( i + 1, Math.min( i + maxRange + 1, size ) ) );
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sectionPairs = JoinFromList.projectOntoSelf( sections, sc.broadcast( indexPairs ) );
-		sectionPairs.cache();
-		sectionPairs.count();
-
-		final MatrixGenerationFromImagePairs matrixGenerator = new MatrixGenerationFromImagePairs( sc, sectionPairs, dim, size );
-
 		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, sections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
+		sections.unpersist();
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
