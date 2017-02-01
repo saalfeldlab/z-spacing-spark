@@ -8,7 +8,7 @@ import java.util.List;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.SparkInference.Variables;
 import org.janelia.thickness.utility.Utility;
 import org.junit.Assert;
 
@@ -37,11 +37,11 @@ public class SparkInterpolationTest
 
 	private JavaSparkContext sc;
 
-	private JavaPairRDD< Tuple2< Integer, Integer >, double[] > rdd;
+	private JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > rdd;
 
 //    private InvertibleRealTransform  tf;
 
-	private final ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > mapping = new ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > >();
+	private final ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > mapping = new ArrayList< >();
 
 	private final int[] dim = new int[] { 20, 20 };
 
@@ -63,12 +63,12 @@ public class SparkInterpolationTest
 
 	private final ScaleAndTranslation tf = new ScaleAndTranslation( new double[] { steps1[ 0 ] * 1.0 / steps2[ 0 ], steps1[ 1 ] * 1.0 / steps2[ 1 ] }, new double[] { ( radii1[ 0 ] - radii2[ 0 ] ) * 1.0 / steps2[ 0 ], ( radii1[ 1 ] - radii2[ 1 ] ) * 1.0 / steps2[ 1 ] } );
 
-	public static void compare( List< Tuple2< Tuple2< Integer, Integer >, double[] > > interpolated, RandomAccessibleInterval< DoubleType > source, InterpolatorFactory< DoubleType, RandomAccessible< DoubleType > > fac, InvertibleRealTransform tf, double allowedError )
+	public static void compare( final List< Tuple2< Tuple2< Integer, Integer >, double[] > > interpolated, final RandomAccessibleInterval< DoubleType > source, final InterpolatorFactory< DoubleType, RandomAccessible< DoubleType > > fac, final InvertibleRealTransform tf, final double allowedError )
 	{
 
-		RandomAccess< DoubleType > ref = RealViews.transform( Views.interpolate( Views.extendBorder( source ), fac ), tf ).randomAccess();
+		final RandomAccess< DoubleType > ref = RealViews.transform( Views.interpolate( Views.extendBorder( source ), fac ), tf ).randomAccess();
 
-		for ( Tuple2< Tuple2< Integer, Integer >, double[] > iCol : interpolated )
+		for ( final Tuple2< Tuple2< Integer, Integer >, double[] > iCol : interpolated )
 		{
 
 			ref.setPosition( new int[] { iCol._1()._1(), iCol._1()._2() } );
@@ -81,9 +81,15 @@ public class SparkInterpolationTest
 	public void testNLiner()
 	{
 		// inteprolate using map from cbs2 into cbs1
-		JavaPairRDD< Tuple2< Integer, Integer >, double[] > interpol = interpolate( sc, rdd, sc.broadcast( mapping ), sourceDim, new SparkInterpolation.MatchCoordinates.NLinearMatcher() );
+		final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > interpol = interpolate(
+				sc,
+				rdd,
+				sc.broadcast( mapping ),
+				sourceDim,
+				new SparkInterpolation.MatchCoordinates.NLinearMatcher() );
 
-		List< Tuple2< Tuple2< Integer, Integer >, double[] > > interpolCollected = interpol.collect();
+		final List< Tuple2< Tuple2< Integer, Integer >, double[] > > interpolCollected =
+				interpol.mapValues( v -> v.coordinates ).collect();
 
 		System.out.flush();
 		System.out.println( interpolCollected.size() );
@@ -96,9 +102,10 @@ public class SparkInterpolationTest
 	public void testNearestNeighbor()
 	{
 		// inteprolate using map from cbs2 into cbs1
-		JavaPairRDD< Tuple2< Integer, Integer >, double[] > interpol = interpolate( sc, rdd, sc.broadcast( mapping ), sourceDim, new SparkInterpolation.MatchCoordinates.NearestNeighborMatcher() );
+		final JavaPairRDD< Tuple2< Integer, Integer >, Variables > interpol = interpolate( sc, rdd, sc.broadcast( mapping ), sourceDim, new SparkInterpolation.MatchCoordinates.NearestNeighborMatcher() );
 
-		List< Tuple2< Tuple2< Integer, Integer >, double[] > > interpolCollected = interpol.collect();
+		final List< Tuple2< Tuple2< Integer, Integer >, double[] > > interpolCollected =
+				interpol.mapValues( v -> v.coordinates ).collect();
 
 		System.out.flush();
 		System.out.println( interpolCollected.size() );
@@ -111,35 +118,32 @@ public class SparkInterpolationTest
 	public void setUp() throws Exception
 	{
 
-		SparkConf conf = new SparkConf().setAppName( "InterpolationTest" ).setMaster( "local" );
+		final SparkConf conf = new SparkConf().setAppName( "InterpolationTest" ).setMaster( "local" );
 		sc = new JavaSparkContext( conf );
 
 		// create rdd with local coordinates of r = [5,5], s = [5,5] and values
 		// =
-		ArrayList< CorrelationBlocks.Coordinate > init = cbs1.generateFromBoundingBox( dim );
-		rdd = sc.parallelize( init ).mapToPair( new PairFunction< CorrelationBlocks.Coordinate, Tuple2< Integer, Integer >, double[] >()
-		{
-			@Override
-			public Tuple2< Tuple2< Integer, Integer >, double[] > call( CorrelationBlocks.Coordinate coordinate ) throws Exception
-			{
-				Tuple2< Integer, Integer > wc = coordinate.getWorldCoordinates();
-				return Utility.tuple2( coordinate.getLocalCoordinates(), new double[] { wc._1() + wc._2() * dim[ 0 ] } );
-			}
+		final ArrayList< CorrelationBlocks.Coordinate > init = cbs1.generateFromBoundingBox( dim );
+		rdd = sc.parallelize( init ).mapToPair( coordinate -> {
+			final Tuple2< Integer, Integer > wc = coordinate.getWorldCoordinates();
+			final double[] arr = new double[] { wc._1() + wc._2() * dim[ 0 ] };
+			return Utility.tuple2(
+					coordinate.getLocalCoordinates(),
+					new SparkInference.Variables( arr, arr.clone(), arr.clone() ) );
 		} );
 
-		List< Tuple2< Tuple2< Integer, Integer >, double[] > > rddCollected = rdd.collect();
+		final List< Tuple2< Tuple2< Integer, Integer >, double[] > > rddCollected =
+				rdd.mapValues( v -> v.coordinates ).collect();
 
 		// map from cbs2 into cbs1
-		ArrayList< CorrelationBlocks.Coordinate > newCoords = cbs2.generateFromBoundingBox( dim );
-		for ( CorrelationBlocks.Coordinate n : newCoords )
-		{
+		final ArrayList< CorrelationBlocks.Coordinate > newCoords = cbs2.generateFromBoundingBox( dim );
+		for ( final CorrelationBlocks.Coordinate n : newCoords )
 			mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateCoordinateIntoThisBlockCoordinates( n ) ) );
-		}
 
-		ArrayImg< DoubleType, DoubleArray > sourceImg = ArrayImgs.doubles( sourceDim[ 0 ], sourceDim[ 1 ] );
+		final ArrayImg< DoubleType, DoubleArray > sourceImg = ArrayImgs.doubles( sourceDim[ 0 ], sourceDim[ 1 ] );
 
-		ArrayRandomAccess< DoubleType > ra = source.randomAccess();
-		for ( Tuple2< Tuple2< Integer, Integer >, double[] > rddC : rddCollected )
+		final ArrayRandomAccess< DoubleType > ra = source.randomAccess();
+		for ( final Tuple2< Tuple2< Integer, Integer >, double[] > rddC : rddCollected )
 		{
 			ra.setPosition( new int[] { rddC._1()._1(), rddC._1()._2() } );
 			ra.get().set( rddC._2()[ 0 ] );

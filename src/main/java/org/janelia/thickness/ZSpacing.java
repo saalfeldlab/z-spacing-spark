@@ -13,13 +13,21 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.storage.StorageLevel;
+import org.janelia.thickness.SparkInference.Variables;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.similarity.ComputeMatricesChunked;
 import org.janelia.thickness.similarity.DefaultMatrixGenerator;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
+import org.janelia.thickness.weight.AllWeightsCalculator;
+import org.janelia.thickness.weight.NoWeightsCalculator;
+import org.janelia.thickness.weight.OnlyEstimateWeightsCalculator;
+import org.janelia.thickness.weight.OnlyShiftWeightsCalculator;
+import org.janelia.thickness.weight.Weights;
+import org.janelia.thickness.weight.WeightsCalculator;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -114,7 +122,8 @@ public class ZSpacing
 		final int size = stop - start;
 
 		final ArrayList< Integer > indices = Utility.arange( size );
-		final JavaPairRDD< Integer, FloatProcessor > sections = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaRDD< Integer > sortedIndexPairs = sc.parallelize( indices ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() );
+		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		sections.cache();
 		sections.count();
 
@@ -128,7 +137,9 @@ public class ZSpacing
 
 		final ArrayList< Tuple2< Tuple2< Integer, Integer >, double[] > > coordinatesList = new ArrayList<>();
 		coordinatesList.add( Utility.tuple2( Utility.tuple2( 0, 0 ), startingCoordinates ) );
-		JavaPairRDD< Tuple2< Integer, Integer >, double[] > coordinates = sc.parallelizePairs( coordinatesList, 1 );
+		final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > variables = sc
+				.parallelizePairs( coordinatesList, 1 )
+				.mapValues( c -> new SparkInference.Variables( c, Utility.singleValueArray( size, 1.0 ), new double[ 0 ] ) );
 
 		final int[][] radiiArray = scaleOptions.radii;
 		final int[][] stepsArray = scaleOptions.steps;
@@ -148,6 +159,29 @@ public class ZSpacing
 
 		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, sections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
 		sections.unpersist();
+
+		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FloatProcessor > shiftMask = scaleOptions.shiftMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.shiftMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+
+		final WeightsCalculator wc;
+		if ( estimateMask == null && shiftMask == null )
+			wc = new NoWeightsCalculator( sc, size, dim );
+		else if ( estimateMask == null )
+		{
+			shiftMask.cache();
+			wc = new OnlyShiftWeightsCalculator( shiftMask, dim );
+		}
+		else if ( shiftMask == null )
+		{
+			estimateMask.cache();
+			wc = new OnlyEstimateWeightsCalculator( estimateMask, dim );
+		}
+		else
+		{
+			final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > weights = estimateMask.join( shiftMask );
+			weights.cache();
+			wc = new AllWeightsCalculator( weights, dim );
+		}
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
@@ -178,9 +212,9 @@ public class ZSpacing
 			if ( xyCoordinates.size() == 0 )
 				xyCoordinates.add( Utility.tuple2( currentOffset[ 0 ], currentOffset[ 1 ] ) );
 
-			JavaPairRDD< Tuple2< Integer, Integer >, double[] > currentCoordinates;
+			JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > currentVariables;
 			if ( i == 0 )
-				currentCoordinates = coordinates;
+				currentVariables = variables;
 			else
 			{
 				final CorrelationBlocks cbs1 = new CorrelationBlocks( previousOffset, previousStep );
@@ -189,9 +223,9 @@ public class ZSpacing
 				final ArrayList< Tuple2< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > mapping = new ArrayList<>();
 				for ( final CorrelationBlocks.Coordinate n : newCoords )
 					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateCoordinateIntoThisBlockCoordinates( n ) ) );
-				currentCoordinates = SparkInterpolation.interpolate( sc, coordinates, sc.broadcast( mapping ), previousDim, new SparkInterpolation.MatchCoordinates.NearestNeighborMatcher() );
+				currentVariables = SparkInterpolation.interpolate( sc, variables, sc.broadcast( mapping ), previousDim, new SparkInterpolation.MatchCoordinates.NearestNeighborMatcher() );
 			}
-			coordinates.unpersist();
+			variables.unpersist();
 
 			//			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
@@ -208,7 +242,10 @@ public class ZSpacing
 
 			final String lutPattern = String.format( outputFolder, i ) + "/luts/%s.tif";
 
-			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > result = SparkInference.inferCoordinates( sc, matrices, currentCoordinates, options[ i ], lutPattern );
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > variablesAndWeights = currentVariables.join( wc.calculate( currentOffset, currentStep ) );
+
+			final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > result =
+					SparkInference.inferCoordinates( sc, matrices, variablesAndWeights, options[ i ], lutPattern );
 			result.cache();
 			final long t0Inference = System.nanoTime();
 			result.count();
@@ -226,22 +263,18 @@ public class ZSpacing
 			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
 
 			final ColumnsAndSections columnsAndSections = new ColumnsAndSections( currentDim, size );
-			final JavaPairRDD< Integer, DPTuple > coordinateSections = columnsAndSections.columnsToSections( sc, result );
-
-			// last occurence of result, unpersist!
 			result.unpersist();
 
-			final JavaPairRDD< Integer, DPTuple > diffused = coordinateSections
-					// TODO write something like diffusion: done?
-					.mapToPair( t -> Utility.tuple2( t._1(), FillHoles.fill( t._2().clone() ) ) );
+			variables.cache();
 
-			coordinates = columnsAndSections.sectionsToColumns( sc, diffused );
-			coordinates.cache();
+			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > coordinates = variables.mapValues( v -> v.coordinates );
+
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).cache();
+			final JavaPairRDD< Integer, DPTuple > forwardImages = columnsAndSections.columnsToSections( sc, coordinates );
 			final JavaPairRDD< Integer, DPTuple > backwardImages = columnsAndSections.columnsToSections( sc, backward );
 
 			final String outputFormat = String.format( outputFolder, i ) + "/forward/%04d.tif";
-			final List< Tuple2< Integer, Boolean > > success = diffused.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormat ) ).collect();
+			final List< Tuple2< Integer, Boolean > > success = forwardImages.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormat ) ).collect();
 
 			final String outputFormatBackward = String.format( outputFolder, i ) + "/backward/%04d.tif";
 			final List< Tuple2< Integer, Boolean > > successBackward = backwardImages.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormatBackward ) ).collect();

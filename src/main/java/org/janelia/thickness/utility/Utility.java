@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -756,5 +757,16 @@ public class Utility
 			final Tuple2< K2, V > t2 = t._2();
 			return Utility.tuple2( t2._1(), Utility.tuple2( t._1(), t2._2() ) );
 		}
+	}
+
+	public static double[] singleValueArray( final int n, final double v )
+	{
+		return singleValueArray( new double[ n ], v );
+	}
+
+	public static double[] singleValueArray( final double[] a, final double v )
+	{
+		Arrays.fill( a, v );
+		return a;
 	}
 }
