@@ -15,11 +15,11 @@ import scala.Tuple2;
 public class OnlyEstimateWeightsCalculator implements WeightsCalculator
 {
 
-	private final JavaPairRDD< Long, FloatProcessor > estimateWeights;
+	private final JavaPairRDD< Integer, FloatProcessor > estimateWeights;
 
 	private final int[] dims;
 
-	public OnlyEstimateWeightsCalculator( final JavaPairRDD< Long, FloatProcessor > estimateWeights, final int... dims )
+	public OnlyEstimateWeightsCalculator( final JavaPairRDD< Integer, FloatProcessor > estimateWeights, final int... dims )
 	{
 		super();
 		this.estimateWeights = estimateWeights;
@@ -27,21 +27,21 @@ public class OnlyEstimateWeightsCalculator implements WeightsCalculator
 	}
 
 	@Override
-	public JavaPairRDD< Tuple2< Long, Long >, Weights > calculate(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Weights > calculate(
 			final int[] radius,
 			final int[] step )
 	{
 
 		final long nSections = estimateWeights.count();
 
-		final JavaPairRDD< Long, HashMap< Tuple2< Long, Long >, Double > > weightsBySection = estimateWeights
+		final JavaPairRDD< Integer, HashMap< Tuple2< Integer, Integer >, Double > > weightsBySection = estimateWeights
 				.mapToPair( t -> {
 
 					final int[] o = radius.clone();
 
 					final int[] indices = IntStream.range( 0, o.length ).toArray();
 
-					final HashMap< Tuple2< Long, Long >, Double > weights = new HashMap<>();
+					final HashMap< Tuple2< Integer, Integer >, Double > weights = new HashMap<>();
 
 					final FloatProcessor fp = t._2();
 
@@ -50,7 +50,7 @@ public class OnlyEstimateWeightsCalculator implements WeightsCalculator
 
 						final int[] min = Arrays.stream( indices ).map( i -> Math.max( o[ i ] - radius[ i ], 0 ) ).toArray();
 						final int[] max = Arrays.stream( indices ).map( i -> Math.min( o[ i ] + radius[ i ], dims[ i ] ) ).toArray();
-						final long[] localIndices = Arrays.stream( indices ).mapToLong( i -> ( o[ i ] - radius[ i ] ) / step[ i ] ).toArray();
+						final int[] localIndices = Arrays.stream( indices ).map( i -> ( o[ i ] - radius[ i ] ) / step[ i ] ).toArray();
 						final int size = Arrays.stream( indices ).map( i -> max[ i ] - min[ i ] ).reduce( 1, ( v1, v2 ) -> v1 * v2 );
 
 						final RealSum sum = new RealSum();
@@ -72,11 +72,11 @@ public class OnlyEstimateWeightsCalculator implements WeightsCalculator
 					return new Tuple2<>( t._1(), weights );
 				} );
 
-		final JavaPairRDD< Tuple2< Long, Long >, Tuple2< Long, Double > > weights = weightsBySection
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, Double > > weights = weightsBySection
 				.flatMapToPair( t -> {
-					final Long c = t._1();
-					final Iterator< Entry< Tuple2< Long, Long >, Double > > it = t._2().entrySet().iterator();
-					return new Iterator< Tuple2< Tuple2< Long, Long >, Tuple2< Long, Double > > >()
+					final Integer c = t._1();
+					final Iterator< Entry< Tuple2< Integer, Integer >, Double > > it = t._2().entrySet().iterator();
+					return new Iterator< Tuple2< Tuple2< Integer, Integer >, Tuple2< Integer, Double > > >()
 					{
 
 						@Override
@@ -86,16 +86,16 @@ public class OnlyEstimateWeightsCalculator implements WeightsCalculator
 						}
 
 						@Override
-						public Tuple2< Tuple2< Long, Long >, Tuple2< Long, Double > > next()
+						public Tuple2< Tuple2< Integer, Integer >, Tuple2< Integer, Double > > next()
 						{
-							final Entry< Tuple2< Long, Long >, Double > e = it.next();
+							final Entry< Tuple2< Integer, Integer >, Double > e = it.next();
 							return new Tuple2<>( e.getKey(), new Tuple2<>( c, e.getValue() ) );
 						}
 
 					};
 				} );
 
-		final JavaPairRDD< Tuple2< Long, Long >, double[] > combinedWeights = weights.aggregateByKey(
+		final JavaPairRDD< Tuple2< Integer, Integer >, double[] > combinedWeights = weights.aggregateByKey(
 				Arrays.stream( new double[ ( int ) nSections ] ).map( d -> Double.NaN ).toArray(),
 				( arr, v ) -> {
 					arr[ v._1().intValue() ] = v._2();

@@ -7,7 +7,7 @@ import scala.Tuple2;
 public interface WeightsCalculator
 {
 
-	public JavaPairRDD< Tuple2< Long, Long >, Weights > calculate(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Weights > calculate(
 			int[] offset,
 			int[] step );
 

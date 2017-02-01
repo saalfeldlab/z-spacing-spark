@@ -27,7 +27,7 @@ public class NoWeightsCalculator implements WeightsCalculator
 	}
 
 	@Override
-	public JavaPairRDD< Tuple2< Long, Long >, Weights > calculate(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Weights > calculate(
 			final int[] radius,
 			final int[] step )
 	{
@@ -37,13 +37,13 @@ public class NoWeightsCalculator implements WeightsCalculator
 
 		final int[] indices = IntStream.range( 0, o.length ).toArray();
 
-		final ArrayList< Tuple2< Long, Long > > weightsLocations = new ArrayList<>();
+		final ArrayList< Tuple2< Integer, Integer > > weightsLocations = new ArrayList<>();
 
 
 		for ( int d = 0; d < o.length; )
 		{
 
-			final long[] localIndices = Arrays.stream( indices ).mapToLong( i -> ( o[ i ] - radius[ i ] ) / step[ i ] ).toArray();
+			final int[] localIndices = Arrays.stream( indices ).map( i -> ( o[ i ] - radius[ i ] ) / step[ i ] ).toArray();
 
 			weightsLocations.add( new Tuple2<>( localIndices[ 0 ], localIndices[ 1 ] ) );
 

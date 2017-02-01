@@ -15,12 +15,12 @@ import scala.Tuple2;
 public class AllWeightsCalculator implements WeightsCalculator
 {
 
-	private final JavaPairRDD< Long, Tuple2< FloatProcessor, FloatProcessor > > bothWeights;
+	private final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > bothWeights;
 
 	private final int[] dims;
 
 	public AllWeightsCalculator(
-			final JavaPairRDD< Long, Tuple2< FloatProcessor, FloatProcessor > > shiftWeights,
+			final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > shiftWeights,
 			final int... dims )
 	{
 		super();
@@ -29,21 +29,21 @@ public class AllWeightsCalculator implements WeightsCalculator
 	}
 
 	@Override
-	public JavaPairRDD< Tuple2< Long, Long >, Weights > calculate(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Weights > calculate(
 			final int[] radius,
 			final int[] step )
 	{
 
 		final long nSections = bothWeights.count();
 
-		final JavaPairRDD< Long, HashMap< Tuple2< Long, Long >, Tuple2< Double, Double > > > weightsBySection = bothWeights
+		final JavaPairRDD< Integer, HashMap< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > weightsBySection = bothWeights
 				.mapToPair( t -> {
 
 					final int[] o = radius.clone();
 
 					final int[] indices = IntStream.range( 0, o.length ).toArray();
 
-					final HashMap< Tuple2< Long, Long >, Tuple2< Double, Double > > weights = new HashMap<>();
+					final HashMap< Tuple2< Integer, Integer >, Tuple2< Double, Double > > weights = new HashMap<>();
 
 					final FloatProcessor fpEstimate = t._2()._1();
 					final FloatProcessor fpShift = t._2()._2();
@@ -53,7 +53,7 @@ public class AllWeightsCalculator implements WeightsCalculator
 
 						final int[] min = Arrays.stream( indices ).map( i -> Math.max( o[ i ] - radius[ i ], 0 ) ).toArray();
 						final int[] max = Arrays.stream( indices ).map( i -> Math.min( o[ i ] + radius[ i ], dims[ i ] ) ).toArray();
-						final long[] localIndices = Arrays.stream( indices ).mapToLong( i -> ( o[ i ] - radius[ i ] ) / step[ i ] ).toArray();
+						final int[] localIndices = Arrays.stream( indices ).map( i -> ( o[ i ] - radius[ i ] ) / step[ i ] ).toArray();
 						final int size = Arrays.stream( indices ).map( i -> max[ i ] - min[ i ] ).reduce( 1, ( v1, v2 ) -> v1 * v2 );
 
 						final RealSum sumEstimate = new RealSum();
@@ -82,11 +82,11 @@ public class AllWeightsCalculator implements WeightsCalculator
 					return new Tuple2<>( t._1(), weights );
 				} );
 
-		final JavaPairRDD< Tuple2< Long, Long >, Tuple2< Long, Tuple2< Double, Double > > > weights = weightsBySection
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Integer, Tuple2< Double, Double > > > weights = weightsBySection
 				.flatMapToPair( t -> {
-					final Long c = t._1();
-					final Iterator< Entry< Tuple2< Long, Long >, Tuple2< Double, Double > > > it = t._2().entrySet().iterator();
-					return new Iterator< Tuple2< Tuple2< Long, Long >, Tuple2< Long, Tuple2< Double, Double > > > >()
+					final Integer c = t._1();
+					final Iterator< Entry< Tuple2< Integer, Integer >, Tuple2< Double, Double > > > it = t._2().entrySet().iterator();
+					return new Iterator< Tuple2< Tuple2< Integer, Integer >, Tuple2< Integer, Tuple2< Double, Double > > > >()
 					{
 
 						@Override
@@ -96,16 +96,16 @@ public class AllWeightsCalculator implements WeightsCalculator
 						}
 
 						@Override
-						public Tuple2< Tuple2< Long, Long >, Tuple2< Long, Tuple2< Double, Double > > > next()
+						public Tuple2< Tuple2< Integer, Integer >, Tuple2< Integer, Tuple2< Double, Double > > > next()
 						{
-							final Entry< Tuple2< Long, Long >, Tuple2< Double, Double > > e = it.next();
+							final Entry< Tuple2< Integer, Integer >, Tuple2< Double, Double > > e = it.next();
 							return new Tuple2<>( e.getKey(), new Tuple2<>( c, e.getValue() ) );
 						}
 
 					};
 				} );
 
-		final JavaPairRDD< Tuple2< Long, Long >, Weights > combinedWeights = weights.aggregateByKey(
+		final JavaPairRDD< Tuple2< Integer, Integer >, Weights > combinedWeights = weights.aggregateByKey(
 				new Weights(
 						Arrays.stream( new double[ ( int ) nSections ] ).map( d -> Double.NaN ).toArray(),
 						Arrays.stream( new double[ ( int ) nSections ] ).map( d -> Double.NaN ).toArray() ),
