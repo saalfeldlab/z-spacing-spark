@@ -32,7 +32,9 @@ public class ScaleOptions
 
 	public final String source;
 
-	public final String mask;
+	public final String estimateMask;
+
+	public final String shiftMask;
 
 	public final String target;
 
@@ -44,7 +46,21 @@ public class ScaleOptions
 
 	public final int joinStepSize;
 
-	public ScaleOptions( final int[][] steps, final int[][] radii, final int[][] correlationBlockRadii, final int[][] maxOffsets, final Options[] inference, final int scale, final String source, final String mask, final String target, final int start, final int stop, final boolean[] logMatrices, final int joinStepSize )
+	public ScaleOptions(
+			final int[][] steps,
+			final int[][] radii,
+			final int[][] correlationBlockRadii,
+			final int[][] maxOffsets,
+			final Options[] inference,
+			final int scale,
+			final String source,
+			final String estimateMask,
+			final String shiftMask,
+			final String target,
+			final int start,
+			final int stop,
+			final boolean[] logMatrices,
+			final int joinStepSize )
 	{
 		super();
 		this.steps = steps;
@@ -54,13 +70,46 @@ public class ScaleOptions
 		this.inference = inference;
 		this.scale = scale;
 		this.source = source;
-		this.mask = mask;
+		this.estimateMask = estimateMask;
+		this.shiftMask = shiftMask;
 		this.target = target;
 		this.start = start;
 		this.stop = stop;
 		this.logMatrices = logMatrices;
 		this.joinStepSize = joinStepSize;
 	}
+
+	public static String SCALE = "scale";
+
+	public static String DEFAULT_OPTIONS = "defaultOptions";
+
+	public static String OPTIONS = "options";
+
+	public static String RADII = "radii";
+
+	public static String STEPS = "steps";
+
+	public static String CORRELATION_BLOCK_RADII = "correlationBlockRadii";
+
+	public static String MAX_OFFSETS = "maxOffsets";
+
+	public static String INFERENCE = "inference";
+
+	public static String SOURCE = "source";
+
+	public static String ESTIMATE_MASK = "estimateMask";
+
+	public static String SHIFT_MASK = "shiftMask";
+
+	public static String TARGET = "target";
+
+	public static String START = "start";
+
+	public static String STOP = "stop";
+
+	public static String LOG_MATRICES = "logMatrices";
+
+	public static String JOIN_STEP_SIZE = "joinStepSize";
 
 	@Override
 	public String toString()
@@ -86,11 +135,11 @@ public class ScaleOptions
 		final File f = new File( path );
 		final JsonObject json = parser.parse( new FileReader( f ) ).getAsJsonObject();
 		//		System.out.println( defaultOptionsJson.toString() );
-		final JsonObject defaultOptionsFromUser = json.get( "defaultOptions" ).getAsJsonObject();
+		final JsonObject defaultOptionsFromUser = json.get( DEFAULT_OPTIONS ).getAsJsonObject();
 		for ( final Entry< String, JsonElement > entry : defaultOptionsFromUser.entrySet() )
 			defaultOptionsJson.add( entry.getKey(), entry.getValue() );
 
-		final JsonArray optionsRadiiAndSteps = json.get( "options" ).getAsJsonArray();
+		final JsonArray optionsRadiiAndSteps = json.get( OPTIONS ).getAsJsonArray();
 
 		final int nIterations = optionsRadiiAndSteps.size();
 		final int[][] steps = new int[ nIterations ][];
@@ -102,22 +151,22 @@ public class ScaleOptions
 		for ( int i = 0; i < nIterations; ++i )
 		{
 			final JsonObject tuple = optionsRadiiAndSteps.get( i ).getAsJsonObject();
-			radii[ i ] = gson.fromJson( tuple.get( "radii" ), int[].class );
-			steps[ i ] = gson.fromJson( tuple.get( "steps" ), int[].class );
+			radii[ i ] = gson.fromJson( tuple.get( RADII ), int[].class );
+			steps[ i ] = gson.fromJson( tuple.get( STEPS ), int[].class );
 
-			if ( tuple.has( "correlationBlockRadii" ) )
-				correlationBlockRadii[ i ] = gson.fromJson( tuple.get( "correlationBlockRadii" ), int[].class );
+			if ( tuple.has( CORRELATION_BLOCK_RADII ) )
+				correlationBlockRadii[ i ] = gson.fromJson( tuple.get( CORRELATION_BLOCK_RADII ), int[].class );
 			else
 				correlationBlockRadii[ i ] = radii[ i ].clone();
 
-			if ( tuple.has( "maxOffsets" ) )
-				maxOffsets[ i ] = gson.fromJson( tuple.get( "maxOffsets" ), int[].class );
+			if ( tuple.has( MAX_OFFSETS ) )
+				maxOffsets[ i ] = gson.fromJson( tuple.get( MAX_OFFSETS ), int[].class );
 			else
 				maxOffsets[ i ] = new int[] { 0, 0 };
 
-			if ( tuple.has( "inference" ) )
+			if ( tuple.has( INFERENCE ) )
 			{
-				final JsonObject currentOpts = tuple.get( "inference" ).getAsJsonObject();
+				final JsonObject currentOpts = tuple.get( INFERENCE ).getAsJsonObject();
 				for ( final Entry< String, JsonElement > entry : currentOpts.entrySet() )
 					defaultOptionsJson.add( entry.getKey(), entry.getValue() );
 			}
@@ -126,18 +175,19 @@ public class ScaleOptions
 
 		}
 
-		final int scale = json.get( "scale" ) == null ? 0 : json.get( "scale" ).getAsInt();
-		final String source = json.get( "source" ).getAsString();
-		final String mask = json.get( "mask" ).getAsString();
-		final String target = json.get( "target" ).getAsString();
+		final int scale = json.get( SCALE ) == null ? 0 : json.get( SCALE ).getAsInt();
+		final String source = json.get( SOURCE ).getAsString();
+		final String estimateMask = json.get( ESTIMATE_MASK ).getAsString();
+		final String shiftMask = json.get( SHIFT_MASK ).getAsString();
+		final String target = json.get( TARGET ).getAsString();
 
-		final int start = json.get( "start" ).getAsInt();
-		final int stop = json.get( "stop" ).getAsInt();
+		final int start = json.get( START ).getAsInt();
+		final int stop = json.get( STOP ).getAsInt();
 
 		final boolean[] logMatrices = new boolean[ steps.length ];
-		if ( json.has( "logMatrices" ) )
+		if ( json.has( LOG_MATRICES ) )
 		{
-			final JsonElement logMatricesJson = json.get( "logMatrices" );
+			final JsonElement logMatricesJson = json.get( LOG_MATRICES );
 			if ( logMatricesJson.isJsonArray() )
 				for ( final JsonElement val : logMatricesJson.getAsJsonArray() )
 				{
@@ -158,9 +208,23 @@ public class ScaleOptions
 		else
 			Arrays.fill( logMatrices, false );
 
-		final int joinStepSize = Math.max( json.has( "joinStepSize" ) ? json.get( "joinStepSize" ).getAsInt() : 0, 2 * opts[ 0 ].comparisonRange );
+		final int joinStepSize = Math.max( json.has( JOIN_STEP_SIZE ) ? json.get( JOIN_STEP_SIZE ).getAsInt() : 0, 2 * opts[ 0 ].comparisonRange );
 
-		return new ScaleOptions( steps, radii, correlationBlockRadii, maxOffsets, opts, scale, source, mask, target, start, stop, logMatrices, joinStepSize );
+		return new ScaleOptions(
+				steps,
+				radii,
+				correlationBlockRadii,
+				maxOffsets,
+				opts,
+				scale,
+				source,
+				estimateMask,
+				shiftMask,
+				target,
+				start,
+				stop,
+				logMatrices,
+				joinStepSize );
 		//		System.out.println( defaultOptionsJson.toString() );
 	}
 
