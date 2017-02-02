@@ -177,8 +177,8 @@ public class ScaleOptions
 
 		final int scale = json.get( SCALE ) == null ? 0 : json.get( SCALE ).getAsInt();
 		final String source = json.get( SOURCE ).getAsString();
-		final String estimateMask = json.get( ESTIMATE_MASK ).getAsString();
-		final String shiftMask = json.get( SHIFT_MASK ).getAsString();
+		final String estimateMask = json.has( ESTIMATE_MASK ) ? json.get( ESTIMATE_MASK ).getAsString() : null;
+		final String shiftMask = json.has( SHIFT_MASK ) ? json.get( SHIFT_MASK ).getAsString() : null;
 		final String target = json.get( TARGET ).getAsString();
 
 		final int start = json.get( START ).getAsInt();
