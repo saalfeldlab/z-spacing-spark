@@ -137,7 +137,7 @@ public class ZSpacing
 
 		final ArrayList< Tuple2< Tuple2< Integer, Integer >, double[] > > coordinatesList = new ArrayList<>();
 		coordinatesList.add( Utility.tuple2( Utility.tuple2( 0, 0 ), startingCoordinates ) );
-		final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > variables = sc
+		JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > variables = sc
 				.parallelizePairs( coordinatesList, 1 )
 				.mapValues( c -> new SparkInference.Variables( c, Utility.singleValueArray( size, 1.0 ), new double[ 0 ] ) );
 
@@ -263,9 +263,10 @@ public class ZSpacing
 			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
 
 			final ColumnsAndSections columnsAndSections = new ColumnsAndSections( currentDim, size );
-			result.unpersist();
-
+			variables.unpersist();
+			variables = result;
 			variables.cache();
+			variables.count();
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > coordinates = variables.mapValues( v -> v.coordinates );
 
