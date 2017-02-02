@@ -55,7 +55,7 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 	@Override
 	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > generateMatrices(
 			final JavaSparkContext sc,
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sectionPairs,
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > sectionPairs,
 			final int[] blockRadius,
 			final int[] stepSize,
 			final int range,
@@ -63,13 +63,11 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 			final int size )
 	{
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sections = sectionPairs
-				.filter( new DefaultMatrixGenerator.SelectInRange< Tuple2< FloatProcessor, FloatProcessor > >( range ) );
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > sections = sectionPairs.filter( new DefaultMatrixGenerator.SelectInRange<>( range ) );
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > maxProjections = sections
-				.mapToPair( new FPToSimilarities< Tuple2< Integer, Integer > >(
-						maxOffset,
-						correlationBlockRadius ) )
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > maxProjections = sections.mapToPair( new FPToSimilarities<>(
+				maxOffset,
+				correlationBlockRadius ) )
 				;
 
 		System.out.println( "maxOffset=" + Arrays.toString( maxOffset ) );
@@ -92,14 +90,14 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 		final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = averagesIndexedByXYTuples
 				.reduceByKey( new Utility.ReduceMapsByUnion< Tuple2< Integer, Integer >, Double, HashMap< Tuple2< Integer, Integer >, Double > >() )
 				.mapToPair( new DefaultMatrixGenerator.MapToFloatProcessor( size, startIndex ) )
-		;
+				;
 
 		return matrices;
 
 	}
 
 	public static class FPToSimilarities< K >
-	implements PairFunction< Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > >, K, Tuple2< FloatProcessor, FloatProcessor > >
+			implements PairFunction< Tuple2< K, Tuple2< ImageAndMask, ImageAndMask > >, K, Tuple2< FloatProcessor, FloatProcessor > >
 	{
 
 		/**
@@ -120,10 +118,10 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 		@SuppressWarnings( "rawtypes" )
 		@Override
 		public Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > >
-		call( final Tuple2< K, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
+		call( final Tuple2< K, Tuple2< ImageAndMask, ImageAndMask > > t ) throws Exception
 		{
-			final FloatProcessor fixed = t._2()._1();
-			final FloatProcessor moving = t._2()._2();
+			final ImageAndMask fixed = t._2()._1();
+			final ImageAndMask moving = t._2()._2();
 
 			final K k = t._1();
 
@@ -137,8 +135,7 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 			}
 
 			final Tuple2< FloatProcessor, FloatProcessor > ccs = tolerantNCC(
-					( FloatProcessor ) fixed.duplicate(),
-					( FloatProcessor ) moving.duplicate(),
+					( FloatProcessor ) fixed.image.duplicate(), ( FloatProcessor ) moving.image.duplicate(),
 					maxOffsets,
 					blockRadius,
 					x,
@@ -202,8 +199,7 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 	}
 
 	public static Tuple2< FloatProcessor, FloatProcessor > tolerantNCC(
-			final FloatProcessor fixed,
-			final FloatProcessor moving,
+			final FloatProcessor fixed, final FloatProcessor moving,
 			final int[] maxOffsets,
 			final int[] blockRadiusInput,
 			final int z1,

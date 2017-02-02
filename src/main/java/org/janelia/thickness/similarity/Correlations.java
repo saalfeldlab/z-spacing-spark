@@ -1,6 +1,5 @@
 package org.janelia.thickness.similarity;
 
-import ij.process.FloatProcessor;
 import net.imglib2.util.RealSum;
 
 /**
@@ -9,16 +8,18 @@ import net.imglib2.util.RealSum;
 public class Correlations
 {
 
-	public static double calculate( final FloatProcessor img1, final FloatProcessor img2 )
+	public static double calculate( final ImageAndMask img1, final ImageAndMask img2 )
 	{
 		final RealSum sumA = new RealSum();
 		final RealSum sumAA = new RealSum();
 		final RealSum sumB = new RealSum();
 		final RealSum sumBB = new RealSum();
 		final RealSum sumAB = new RealSum();
-		int n = 0;
-		float[] d1 = ( float[] ) img1.getPixels();
-		float[] d2 = ( float[] ) img2.getPixels();
+		double n = 0.0;
+		final float[] d1 = ( float[] ) img1.image.getPixels();
+		final float[] d2 = ( float[] ) img2.image.getPixels();
+		final float[] m1 = ( float[] ) img1.mask.getPixels();
+		final float[] m2 = ( float[] ) img2.mask.getPixels();
 		for ( int i = 0; i < d1.length; ++i )
 		{
 			final float va = d1[ i ];
@@ -26,12 +27,14 @@ public class Correlations
 
 			if ( Float.isNaN( va ) || Float.isNaN( vb ) )
 				continue;
-			++n;
-			sumA.add( va );
-			sumAA.add( va * va );
-			sumB.add( vb );
-			sumBB.add( vb * vb );
-			sumAB.add( va * vb );
+
+			final double w = m1[ i ] * m2[ i ];
+			n += w;
+			sumA.add( w * va );
+			sumAA.add( w * va * va );
+			sumB.add( w * vb );
+			sumBB.add( w * vb * vb );
+			sumAB.add( w * va * vb );
 		}
 		final double suma = sumA.getSum();
 		final double sumaa = sumAA.getSum();

@@ -54,7 +54,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 	@Override
 	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > generateMatrices(
 			final JavaSparkContext sc,
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > sectionPairs,
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > sectionPairs,
 			final int[] blockRadius,
 			final int[] stepSize,
 			final int range,
@@ -62,8 +62,8 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 			final int size )
 	{
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairsWithinRange =
-				sectionPairs.filter( new SelectInRange< Tuple2< FloatProcessor, FloatProcessor > >( range ) );
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > pairsWithinRange =
+				sectionPairs.filter( new SelectInRange<>( range ) );
 
 		final BlockCoordinates correlationBlocks = new BlockCoordinates( blockRadius, stepSize );
 
@@ -104,7 +104,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		}
 	}
 
-	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
+	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
 	{
 
 		/**
@@ -124,10 +124,10 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 
 		@Override
 		public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
-		call( final Tuple2< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > t ) throws Exception
+		call( final Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > t ) throws Exception
 		{
-			final FloatProcessor fp1 = t._2()._1();
-			final FloatProcessor fp2 = t._2()._2();
+			final ImageAndMask fp1 = t._2()._1();
+			final ImageAndMask fp2 = t._2()._2();
 			final int[] min = new int[] { 0, 0 };
 			final int[] currentStart = new int[ 2 ];
 			final int[] currentStop = new int[ 2 ];
@@ -144,13 +144,17 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 				final int[] targetDim = new int[] { currentStop[ 0 ] - currentStart[ 0 ], currentStop[ 1 ] - currentStart[ 1 ] };
 				final FloatProcessor target1 = new FloatProcessor( targetDim[ 0 ], targetDim[ 1 ] );
 				final FloatProcessor target2 = new FloatProcessor( targetDim[ 0 ], targetDim[ 1 ] );
+				final FloatProcessor targetM1 = new FloatProcessor( targetDim[ 0 ], targetDim[ 1 ] );
+				final FloatProcessor targetM2 = new FloatProcessor( targetDim[ 0 ], targetDim[ 1 ] );
 				for ( int ySource = currentStart[ 1 ], yTarget = 0; ySource < currentStop[ 1 ]; ++ySource, ++yTarget )
 					for ( int xSource = currentStart[ 0 ], xTarget = 0; xSource < currentStop[ 0 ]; ++xSource, ++xTarget )
 					{
-						target1.setf( xTarget, yTarget, fp1.getf( xSource, ySource ) );
-						target2.setf( xTarget, yTarget, fp2.getf( xSource, ySource ) );
+						target1.setf( xTarget, yTarget, fp1.image.getf( xSource, ySource ) );
+						target2.setf( xTarget, yTarget, fp2.image.getf( xSource, ySource ) );
+						targetM1.setf( xTarget, yTarget, fp1.mask.getf( xSource, ySource ) );
+						targetM2.setf( xTarget, yTarget, fp1.mask.getf( xSource, ySource ) );
 					}
-				final double correlation = Correlations.calculate( target1, target2 );
+				final double correlation = Correlations.calculate( new ImageAndMask( target1, targetM1 ), new ImageAndMask( target2, targetM2 ) );
 				result.put( local, correlation );
 			}
 			return Utility.tuple2( t._1(), result );

@@ -32,7 +32,7 @@ public class ComputeMatricesChunked
 
 	private final JavaSparkContext sc;
 
-	private final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > > pairs;
+	private final ArrayList< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > > pairs;
 
 	private final ArrayList< Tuple5< Integer, Integer, Integer, Integer, Integer > > bounds;
 
@@ -46,7 +46,7 @@ public class ComputeMatricesChunked
 
 	public ComputeMatricesChunked(
 			final JavaSparkContext sc,
-			final JavaPairRDD< Integer, FloatProcessor > files,
+			final JavaPairRDD< Integer, ImageAndMask > files,
 			final int stepSize,
 			final int maxRange,
 			final int[] dim,
@@ -70,7 +70,7 @@ public class ComputeMatricesChunked
 			final int lower = Math.max( z - this.maxRange, 0 );
 			final int upper = Math.min( z + this.maxRange + stepSize, stop );
 			final int size = upper - lower;
-			final JavaPairRDD< Integer, FloatProcessor > rdd = files.filter( new Utility.FilterRange< FloatProcessor >( lower, upper ) );
+			final JavaPairRDD< Integer, ImageAndMask > rdd = files.filter( new Utility.FilterRange<>( lower, upper ) );
 			final HashMap< Integer, ArrayList< Integer > > keyPairList = new HashMap< >();
 			for ( int i = lower; i < upper; ++i )
 			{
@@ -79,7 +79,7 @@ public class ComputeMatricesChunked
 					al.add( k );
 				keyPairList.put( i, al );
 			}
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pairs =
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > pairs =
 					JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ) ).persist( pairPersistenceLevel );
 			this.pairs.add( pairs );
 			this.bounds.add( Utility.tuple5( z, Math.min( z + stepSize, stop ), z - lower, lower, size ) );
@@ -100,7 +100,7 @@ public class ComputeMatricesChunked
 		final int stop = maxIndex + 1;
 		for ( int i = 0; i < this.pairs.size(); ++i )
 		{
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > pair = this.pairs.get( i );
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > pair = this.pairs.get( i );
 			final MatrixGenerator matrixGenerator = factory.create();
 			final Tuple5< Integer, Integer, Integer, Integer, Integer > bound = this.bounds.get( i );
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices =

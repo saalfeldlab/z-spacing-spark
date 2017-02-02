@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import org.janelia.thickness.SparkInference.Variables;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.similarity.ComputeMatricesChunked;
 import org.janelia.thickness.similarity.DefaultMatrixGenerator;
+import org.janelia.thickness.similarity.ImageAndMask;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.thickness.weight.AllWeightsCalculator;
@@ -123,13 +125,24 @@ public class ZSpacing
 
 		final ArrayList< Integer > indices = Utility.arange( size );
 		final JavaRDD< Integer > sortedIndexPairs = sc.parallelize( indices ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() );
-		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FloatProcessor > sections =
+				sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		sections.cache();
 		sections.count();
 
 		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2();
 		final int width = firstImg.getWidth();
 		final int height = firstImg.getHeight();
+
+		final JavaPairRDD< Integer, FloatProcessor > sectionMasks;
+		if ( scaleOptions.estimateMask == null )
+			sectionMasks = sections.mapValues( v -> {
+				final float[] pixels = new float[ width* height];
+				Arrays.fill( pixels, 1.0f );
+				return new FloatProcessor( width, height, pixels );
+			} );
+		else
+			sectionMasks = sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 
 		final double[] startingCoordinates = new double[ size ];
 		for ( int i = 0; i < size; ++i )
@@ -157,7 +170,9 @@ public class ZSpacing
 		for ( int i = 0; i < size; ++i )
 			indexPairs.put( i, Utility.arange( i + 1, Math.min( i + maxRange + 1, size ) ) );
 
-		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, sections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
+		final JavaPairRDD< Integer, ImageAndMask > maskedSections = sections.join( sectionMasks ).mapValues( fps -> new ImageAndMask( fps._1(), fps._2() ) );
+
+		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, maskedSections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
 		sections.unpersist();
 
 		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
@@ -185,6 +200,9 @@ public class ZSpacing
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
+
+			final ArrayList< Object > unpersistList = new ArrayList<>();
+
 			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": i=" + i );
 			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Options [" + i + "] = \n" + options[ i ].toString() );
 
@@ -227,6 +245,10 @@ public class ZSpacing
 			}
 			variables.unpersist();
 
+			final JavaPairRDD< Tuple2< Integer, Integer >, Weights > masks = wc.calculate( currentOffset, currentStep );
+			masks.cache();
+			unpersistList.add( masks );
+
 			//			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
 			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
 			matrices.cache();
@@ -242,7 +264,7 @@ public class ZSpacing
 
 			final String lutPattern = String.format( outputFolder, i ) + "/luts/%s.tif";
 
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > variablesAndWeights = currentVariables.join( wc.calculate( currentOffset, currentStep ) );
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > variablesAndWeights = currentVariables.join( masks );
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > result =
 					SparkInference.inferCoordinates( sc, matrices, variablesAndWeights, options[ i ], lutPattern );
@@ -313,6 +335,16 @@ public class ZSpacing
 			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Successfully wrote " + ( success.size() - count ) + "/" + success.size() + " (forward) and " + ( successBackward.size() - countBackward ) + "/" + successBackward.size() + " (backward) " + "images at iteration " + i + String.format( " in %25dms", tEnd - tStart ) );
 
 			times.add( Utility.tuple2( tStart, tEnd ) );
+
+			// unpersist rdds
+			for ( final Object o : unpersistList )
+			{
+				if ( o instanceof JavaPairRDD< ?, ? > )
+					( ( JavaPairRDD< ?, ? > ) o ).unpersist();
+				if ( o instanceof JavaRDD< ? > )
+					( ( JavaRDD< ? > ) o ).unpersist();
+			}
+
 		}
 
 		for ( final Tuple2< Long, Long > t : times )
