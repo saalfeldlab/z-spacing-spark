@@ -72,7 +72,9 @@ public class SparkInterpolation
 			public void call( final Tuple2< Double, Double > newPointInOldCoordinates, final Tuple2< Integer, Integer > newCoordinateGrid, final Tuple2< Integer, Integer > oldCoordinateGrid, final List< Tuple2< Tuple2< Integer, Integer >, Double > > associateWithNewCoordinatesGridAndWeights, final int[] dim )
 			{
 
-				if ( Math.round( newPointInOldCoordinates._1() ) == oldCoordinateGrid._1().intValue() && Math.round( newPointInOldCoordinates._2() ) == oldCoordinateGrid._2().intValue() )
+				final long r1 = Math.round( newPointInOldCoordinates._1() );
+				final long r2 = Math.round( newPointInOldCoordinates._2() );
+				if ( r1 == oldCoordinateGrid._1().intValue() && r2 == oldCoordinateGrid._2().intValue() )
 					associateWithNewCoordinatesGridAndWeights.add( Utility.tuple2( newCoordinateGrid, 1.0 ) );
 
 			}
@@ -115,7 +117,10 @@ public class SparkInterpolation
 			{
 				final Tuple2< Integer, Integer > newCoordinateGrid = c._1();
 				final Tuple2< Double, Double > newPointInOldCoordinates = c._2();
-				matcher.call( newPointInOldCoordinates, newCoordinateGrid, oldCoordinateGrid, associations, dim );
+				final Tuple2< Double, Double > bounded = new Tuple2<>(
+						Math.max( Math.min( newPointInOldCoordinates._1(), dim[ 0 ] - 1 ), 0 ),
+						Math.max( Math.min( newPointInOldCoordinates._2(), dim[ 1 ] - 1 ), 0 ) );
+				matcher.call( bounded, newCoordinateGrid, oldCoordinateGrid, associations, dim );
 			}
 
 			final Iterable< Tuple2< Tuple2< Tuple2< Integer, Integer >, V >, Tuple2< Tuple2< Integer, Integer >, Double > > > it = () -> {
