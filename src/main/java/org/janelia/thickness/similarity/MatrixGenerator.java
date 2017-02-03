@@ -14,7 +14,7 @@ public interface MatrixGenerator
 		public MatrixGenerator create();
 	}
 
-	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > generateMatrices(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > generateMatrices(
 			final JavaSparkContext sc,
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > sectionPairs,
 			final int[] blockRadius,

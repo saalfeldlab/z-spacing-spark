@@ -23,6 +23,7 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.basictypeaccess.array.DoubleArray;
+import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
@@ -56,14 +57,17 @@ public class SparkInference
 
 		public final FloatProcessor matrix;
 
+		public final FloatProcessor estimateWeights;
+
 		public final Variables variables;
 
 		public final Weights weights;
 
-		public Input( final FloatProcessor matrix, final Variables variables, final Weights weights )
+		public Input( final FloatProcessor matrix, final FloatProcessor estimateWeights, final Variables variables, final Weights weights )
 		{
 			super();
 			this.matrix = matrix;
+			this.estimateWeights = estimateWeights;
 			this.variables = variables;
 			this.weights = weights;
 		}
@@ -73,14 +77,14 @@ public class SparkInference
 
 	public static JavaPairRDD< Tuple2< Integer, Integer >, Variables > inferCoordinates(
 			final JavaSparkContext sc,
-			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices,
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matricesAndEstimateWeights,
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > startingVariablesAndWeights,
 			final Options options,
 			final String pattern )
 	{
-		final JavaPairRDD< Tuple2< Integer, Integer >, Input > matricesWithStartingCoordinates = matrices
+		final JavaPairRDD< Tuple2< Integer, Integer >, Input > matricesWithStartingCoordinates = matricesAndEstimateWeights
 				.join( startingVariablesAndWeights )
-				.mapValues( t -> new Input( t._1(), t._2()._1(), t._2()._2() ) );
+				.mapValues( t -> new Input( t._1()._1(), t._1()._2(), t._2()._1(), t._2()._2() ) );
 		final JavaPairRDD< Tuple2< Integer, Integer >, Variables > result =
 				matricesWithStartingCoordinates.mapToPair( new Inference< Tuple2< Integer, Integer > >( options, pattern ) );
 
@@ -106,16 +110,10 @@ public class SparkInference
 		public Tuple2< K, Variables > call( final Tuple2< K, Input > t ) throws Exception
 		{
 
-			//            if ( t._1().equals( Utility.tuple2( 10, 0 ) ) )
-			//                new FileSaver( new ImagePlus( "", t._2()._1().rebuild() ) ).saveAsTiff("/groups/saalfeld/home/hanslovskyp/matrix-spark.tif");
 			final Input input = t._2();
-			final FloatProcessor fp = input.matrix;
-			final int w = fp.getWidth();
-			final int h = fp.getHeight();
-			final float[] d = ( float[] ) fp.getPixels();
-			final RandomAccessibleInterval< FloatType > matrix = w == h ? ArrayImgs.floats( d, w, h ) : MatrixStripConversion.stripToMatrix( ArrayImgs.floats( d, w, h ), new FloatType( Float.NaN ) );
+			final RandomAccessibleInterval< FloatType > matrix = wrapMatrix( input.matrix );
+			final RandomAccessibleInterval< FloatType > estimateWeights = wrapMatrix( input.estimateWeights );
 
-			// return starting coordinates if one of the values is nan or zero
 			for ( final Cursor< FloatType > c = Views.iterable( matrix ).cursor(); c.hasNext(); )
 			{
 				final float val = c.next().get();
@@ -127,16 +125,6 @@ public class SparkInference
 
 			final AbstractCorrelationFit corrFit = options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverage() : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
 			final InferFromMatrix inference = new InferFromMatrix( corrFit );
-			// InferFromMatrix inference = new
-			// InferFromMatrix(LocalizedCorrelationFitConstant.generateTranslation1D(),
-			// new OpinionMediatorWeightedAverage());
-			//            Visitor visitor = new Visitor() {
-			//                @Override
-			//                public <T extends RealType<T>> void act(int iteration, RandomAccessibleInterval<T> matrix, double[] lut, int[] permutation, int[] inversePermutation, double[] multipliers, double[] weights, RandomAccessibleInterval<double[]> estimatedFit) {
-			//                    System.out.println( "VISITOR: " + t._1() + Arrays.toString(lut) + " " + iteration);
-			//                    System.out.flush();
-			//                }
-			//            };
 			Visitor visitor = new LazyVisitor();
 			final ArrayImg< DoubleType, DoubleArray > img = ArrayImgs.doubles( input.variables.coordinates.length, options.nIterations + 1 );
 			visitor = new WriteTransformationVisitor( img );
@@ -147,7 +135,7 @@ public class SparkInference
 						input.variables.coordinates,
 						input.variables.estimate,
 						input.variables.scalingFactors,
-						input.weights.estimateWeights,
+						estimateWeights,
 						input.weights.shiftWeights,
 						visitor,
 						options );
@@ -193,5 +181,13 @@ public class SparkInference
 				current.next().set( lut[ z ] );
 		}
 
+	}
+
+	public static RandomAccessibleInterval< FloatType > wrapMatrix( final FloatProcessor fp )
+	{
+		final int w = fp.getWidth();
+		final int h = fp.getHeight();
+		final ArrayImg< FloatType, FloatArray > wrapped = ArrayImgs.floats( ( float[] ) fp.getPixels(), w, h );
+		return w == h ? wrapped : MatrixStripConversion.stripToMatrix( wrapped, new FloatType() );
 	}
 }

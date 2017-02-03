@@ -63,7 +63,7 @@ public class NoWeightsCalculator implements WeightsCalculator
 				.parallelize( weightsLocations )
 				.mapToPair( l -> {
 					final double[] w = Arrays.stream( new double[ ( int ) nSections ] ).map( d -> 1.0 ).toArray();
-					return new Tuple2<>( l, new Weights( w, w ) );
+					return new Tuple2<>( l, new Weights( w ) );
 				} );
 
 	}

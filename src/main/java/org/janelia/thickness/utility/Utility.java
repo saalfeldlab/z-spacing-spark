@@ -96,8 +96,13 @@ public class Utility
 
 	public static ArrayList< Integer > arange( final int start, final int stop )
 	{
+		return arange( start, stop, 1 );
+	}
+
+	public static ArrayList< Integer > arange( final int start, final int stop, final int step )
+	{
 		final ArrayList< Integer > numbers = new ArrayList<>();
-		for ( int i = start; i < stop; ++i )
+		for ( int i = start; i < stop; i += step )
 			numbers.add( i );
 		return numbers;
 	}

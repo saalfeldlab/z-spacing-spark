@@ -3,10 +3,12 @@ package org.janelia.thickness.similarity;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map.Entry;
 
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.similarity.Correlations.Output;
 import org.janelia.thickness.utility.Utility;
 
 import ij.process.FloatProcessor;
@@ -53,7 +55,7 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 	}
 
 	@Override
-	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > generateMatrices(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > generateMatrices(
 			final JavaSparkContext sc,
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > sectionPairs,
 			final int[] blockRadius,
@@ -87,8 +89,14 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 				.mapToPair( new Utility.ValueAsMap< Tuple2< Integer, Integer >, Tuple2< Integer, Integer >, Double >() )
 				;
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = averagesIndexedByXYTuples
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matrices = averagesIndexedByXYTuples
 				.reduceByKey( new Utility.ReduceMapsByUnion< Tuple2< Integer, Integer >, Double, HashMap< Tuple2< Integer, Integer >, Double > >() )
+				.mapValues( hm -> {
+					final HashMap< Tuple2< Integer, Integer >, Output > result = new HashMap< >();
+					for ( final Entry< Tuple2< Integer, Integer >, Double > e : hm.entrySet() )
+						result.put( e.getKey(), new Output( e.getValue(), 1.0 ) );
+					return result;
+				} )
 				.mapToPair( new DefaultMatrixGenerator.MapToFloatProcessor( size, startIndex ) )
 				;
 
@@ -97,7 +105,7 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 	}
 
 	public static class FPToSimilarities< K >
-			implements PairFunction< Tuple2< K, Tuple2< ImageAndMask, ImageAndMask > >, K, Tuple2< FloatProcessor, FloatProcessor > >
+	implements PairFunction< Tuple2< K, Tuple2< ImageAndMask, ImageAndMask > >, K, Tuple2< FloatProcessor, FloatProcessor > >
 	{
 
 		/**

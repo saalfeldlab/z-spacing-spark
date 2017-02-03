@@ -13,6 +13,7 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.BlockCoordinates;
+import org.janelia.thickness.similarity.Correlations.Output;
 import org.janelia.thickness.utility.Utility;
 
 import ij.process.FloatProcessor;
@@ -52,7 +53,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 	}
 
 	@Override
-	public JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > generateMatrices(
+	public JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > generateMatrices(
 			final JavaSparkContext sc,
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > sectionPairs,
 			final int[] blockRadius,
@@ -69,10 +70,10 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 
 		final Broadcast< ArrayList< BlockCoordinates.Coordinate > > coordinates = sc.broadcast( correlationBlocks.generateFromBoundingBox( dim ) );
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > pairwiseCorrelations = pairsWithinRange
+		final JavaPairRDD< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Output > > pairwiseCorrelations = pairsWithinRange
 				.mapToPair( new SubSectionCorrelations( coordinates, dim ) );
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = pairwiseCorrelations
+		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matrices = pairwiseCorrelations
 				.flatMapToPair( new ExchangeIndexOrder() )
 				.reduceByKey( new ReduceMaps() )
 				.mapToPair( new MapToFloatProcessor( size, startIndex ) );
@@ -104,7 +105,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		}
 	}
 
-	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
+	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > >
 	{
 
 		/**
@@ -123,7 +124,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		}
 
 		@Override
-		public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
+		public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > >
 		call( final Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > t ) throws Exception
 		{
 			final ImageAndMask fp1 = t._2()._1();
@@ -131,7 +132,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 			final int[] min = new int[] { 0, 0 };
 			final int[] currentStart = new int[ 2 ];
 			final int[] currentStop = new int[ 2 ];
-			final HashMap< Tuple2< Integer, Integer >, Double > result = new HashMap< >();
+			final HashMap< Tuple2< Integer, Integer >, Correlations.Output > result = new HashMap<>();
 			for ( final BlockCoordinates.Coordinate coord : coordinates.getValue() )
 			{
 				final Tuple2< Integer, Integer > local = coord.getLocalCoordinates();
@@ -154,14 +155,15 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 						targetM1.setf( xTarget, yTarget, fp1.mask.getf( xSource, ySource ) );
 						targetM2.setf( xTarget, yTarget, fp1.mask.getf( xSource, ySource ) );
 					}
-				final double correlation = Correlations.calculate( new ImageAndMask( target1, targetM1 ), new ImageAndMask( target2, targetM2 ) );
+				final Correlations.Output correlation = Correlations.calculate( new ImageAndMask( target1, targetM1 ), new ImageAndMask( target2, targetM2 ) );
+
 				result.put( local, correlation );
 			}
 			return Utility.tuple2( t._1(), result );
 		}
 	}
 
-	public static class ExchangeIndexOrder implements PairFlatMapFunction< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >
+	public static class ExchangeIndexOrder implements PairFlatMapFunction< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > >
 	{
 		/**
 		 *
@@ -169,16 +171,15 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		private static final long serialVersionUID = -6042060930096104068L;
 
 		@Override
-		public Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > >
-		call( final Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > t ) throws Exception
+		public Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > > > call( final Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > > t ) throws Exception
 		{
 			// z coordinate of sections
 			final Tuple2< Integer, Integer > zz = t._1();
-			final HashMap< Tuple2< Integer, Integer >, Double > corrs = t._2();
+			final HashMap< Tuple2< Integer, Integer >, Correlations.Output > corrs = t._2();
 
-			return new Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > >()
+			return new Iterator< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > > >()
 			{
-				Iterator< Map.Entry< Tuple2< Integer, Integer >, Double > > it = corrs.entrySet().iterator();
+				Iterator< Map.Entry< Tuple2< Integer, Integer >, Correlations.Output > > it = corrs.entrySet().iterator();
 
 				@Override
 				public boolean hasNext()
@@ -187,11 +188,11 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 				}
 
 				@Override
-				public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > next()
+				public Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > > next()
 				{
-					final Map.Entry< Tuple2< Integer, Integer >, Double > nextCorr = it.next();
+					final Map.Entry< Tuple2< Integer, Integer >, Correlations.Output > nextCorr = it.next();
 					final Tuple2< Integer, Integer > xy = nextCorr.getKey();
-					final HashMap< Tuple2< Integer, Integer >, Double > result = new HashMap< >();
+					final HashMap< Tuple2< Integer, Integer >, Correlations.Output > result = new HashMap<>();
 					result.put( zz, nextCorr.getValue() );
 					return Utility.tuple2( xy, result );
 				}
@@ -200,7 +201,7 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		}
 	}
 
-	public static class ReduceMaps implements Function2< HashMap< Tuple2< Integer, Integer >, Double >, HashMap< Tuple2< Integer, Integer >, Double >, HashMap< Tuple2< Integer, Integer >, Double > >
+	public static class ReduceMaps implements Function2< HashMap< Tuple2< Integer, Integer >, Correlations.Output >, HashMap< Tuple2< Integer, Integer >, Correlations.Output >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > >
 	{
 		/**
 		 *
@@ -208,14 +209,14 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		private static final long serialVersionUID = 7642037831468553986L;
 
 		@Override
-		public HashMap< Tuple2< Integer, Integer >, Double > call( final HashMap< Tuple2< Integer, Integer >, Double > hm1, final HashMap< Tuple2< Integer, Integer >, Double > hm2 ) throws Exception
+		public HashMap< Tuple2< Integer, Integer >, Correlations.Output > call( final HashMap< Tuple2< Integer, Integer >, Correlations.Output > hm1, final HashMap< Tuple2< Integer, Integer >, Correlations.Output > hm2 ) throws Exception
 		{
 			hm1.putAll( hm2 );
 			return hm1;
 		}
 	}
 
-	public static class MapToFloatProcessor implements PairFunction< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > >, Tuple2< Integer, Integer >, FloatProcessor >
+	public static class MapToFloatProcessor implements PairFunction< Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > >, Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > >
 	{
 
 		/**
@@ -234,22 +235,29 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		}
 
 		@Override
-		public Tuple2< Tuple2< Integer, Integer >, FloatProcessor > call( final Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Double > > t ) throws Exception
+		public Tuple2< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > call( final Tuple2< Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, Correlations.Output > > t ) throws Exception
 		{
 			final FloatProcessor result = new FloatProcessor( size, size );
+			final FloatProcessor weight = new FloatProcessor( size, size );
 			result.add( Double.NaN );
 			for ( int z = 0; z < size; ++z )
+			{
 				result.setf( z, z, 1.0f );
-			for ( final Map.Entry< Tuple2< Integer, Integer >, Double > entry : t._2().entrySet() )
+				weight.setf( z, z, 1.0f );
+			}
+			for ( final Map.Entry< Tuple2< Integer, Integer >, Correlations.Output > entry : t._2().entrySet() )
 			{
 				final Tuple2< Integer, Integer > xy = entry.getKey();
 				final int x = xy._1() - startIndex;
 				final int y = xy._2() - startIndex;
-				final float val = entry.getValue().floatValue();
+				final float val = ( float ) entry.getValue().corr;
+				final float w = ( float ) entry.getValue().weight;
 				result.setf( x, y, val );
 				result.setf( y, x, val );
+				weight.setf( x, y, w );
+				weight.setf( y, x, w );
 			}
-			return Utility.tuple2( t._1(), result );
+			return Utility.tuple2( t._1(), new Tuple2<>( result, weight ) );
 		}
 	}
 }

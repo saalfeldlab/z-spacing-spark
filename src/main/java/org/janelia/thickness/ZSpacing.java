@@ -24,9 +24,7 @@ import org.janelia.thickness.similarity.DefaultMatrixGenerator;
 import org.janelia.thickness.similarity.ImageAndMask;
 import org.janelia.thickness.utility.DPTuple;
 import org.janelia.thickness.utility.Utility;
-import org.janelia.thickness.weight.AllWeightsCalculator;
 import org.janelia.thickness.weight.NoWeightsCalculator;
-import org.janelia.thickness.weight.OnlyEstimateWeightsCalculator;
 import org.janelia.thickness.weight.OnlyShiftWeightsCalculator;
 import org.janelia.thickness.weight.Weights;
 import org.janelia.thickness.weight.WeightsCalculator;
@@ -178,25 +176,7 @@ public class ZSpacing
 		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		final JavaPairRDD< Integer, FloatProcessor > shiftMask = scaleOptions.shiftMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.shiftMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 
-		final WeightsCalculator wc;
-		if ( estimateMask == null && shiftMask == null )
-			wc = new NoWeightsCalculator( sc, size, dim );
-		else if ( estimateMask == null )
-		{
-			shiftMask.cache();
-			wc = new OnlyShiftWeightsCalculator( shiftMask, dim );
-		}
-		else if ( shiftMask == null )
-		{
-			estimateMask.cache();
-			wc = new OnlyEstimateWeightsCalculator( estimateMask, dim );
-		}
-		else
-		{
-			final JavaPairRDD< Integer, Tuple2< FloatProcessor, FloatProcessor > > weights = estimateMask.join( shiftMask );
-			weights.cache();
-			wc = new AllWeightsCalculator( weights, dim );
-		}
+		final WeightsCalculator wc = shiftMask == null ? new NoWeightsCalculator( sc, size, dim ) : new OnlyShiftWeightsCalculator( shiftMask, dim );
 
 		for ( int i = 0; i < radiiArray.length; ++i )
 		{
@@ -250,7 +230,7 @@ public class ZSpacing
 			unpersistList.add( masks );
 
 			//			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
-			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
 			matrices.cache();
 
 			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Calculated " + matrices.count() + " matrices" );
@@ -259,7 +239,7 @@ public class ZSpacing
 			{
 				final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
 				// Write matrices
-				matrices.mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) ).collect();
+				matrices.mapValues( t -> t._1() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) ).collect();
 			}
 
 			final String lutPattern = String.format( outputFolder, i ) + "/luts/%s.tif";
@@ -306,7 +286,7 @@ public class ZSpacing
 			{
 				// write transformed matrices
 				final String outputFormatTransformedMatrices = String.format( outputFolder, i ) + "/transformed-matrices/%s.tif";
-				matrices.join( backward ).mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) ).collect();
+				matrices.mapValues( t -> t._1() ).join( backward ).mapToPair( new Utility.Transform< Tuple2< Integer, Integer > >() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatTransformedMatrices ) ).collect();
 			}
 
 			// last occurence of backward, unpersist!

@@ -110,7 +110,6 @@ public class OnlyShiftWeightsCalculator implements WeightsCalculator
 
 		return combinedWeights.mapToPair( t -> {
 			return new Tuple2<>( t._1(), new Weights(
-					t._2(),
 					Arrays.stream( new double[ t._2().length ] ).map( d -> 1.0 ).toArray() ) );
 		});
 	}
