@@ -111,10 +111,18 @@ public class ZSpacing
 		else if ( Utility.classExists( scaleOptions.fileOpener ) )
 		{
 			LOG.info( "Using existing class for fileOpener: " + scaleOptions.fileOpener );
+			// eg "fileOpener" :
+			// "org.janelia.thickness.utility.Utility$LoadFileFromPattern"
 			run( sc, scaleOptions, ( Function< Integer, FloatProcessor > ) Class.forName( scaleOptions.fileOpener ).getConstructor( String.class ).newInstance( scaleOptions.source ) );
 		}
 		else
 		{
+			LOG.info( "Using lambda for fileOpener: " + scaleOptions.fileOpener );
+			// eg "fileOpener" :
+			// "i -> new ij.ImagePlus(String.format(\"%04d.tif\", i )
+			// ).getProcessor().convertToFloatProcessor()"
+			// problem: Lambda or class containing lambda expression not
+			// available on remote side? Serialization issues? Solve! TODO
 			final Function< Integer, FloatProcessor > fileOpener = LambdaFactory.get().createLambda( scaleOptions.fileOpener, new TypeReference< Function< Integer, FloatProcessor > >()
 			{} );
 			run( sc, scaleOptions, fileOpener );

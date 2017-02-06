@@ -561,6 +561,37 @@ public class Utility
 		}
 	}
 
+	public static class LoadPNGFromPattern implements Function< Integer, FloatProcessor >
+	{
+
+		private final String pattern;
+
+		public LoadPNGFromPattern( final String pattern )
+		{
+			this.pattern = pattern;
+		}
+
+		@Override
+		public FloatProcessor call( final Integer k ) throws Exception
+		{
+			final String path = String.format( pattern, k.intValue() );
+			final ImageProcessor ip = new ImagePlus( path ).getProcessor();
+			final FloatProcessor fp = new FloatProcessor( ip.getWidth(), ip.getHeight() );
+
+			final int w = fp.getWidth();
+			final int h = fp.getHeight();
+
+			for ( int y = 0; y < h; ++y )
+				for ( int x = 0; x < w; ++x )
+				{
+					final float v = ip.getf( x, y );
+					fp.setf( x, y, v >= 255.0 ? Float.NaN : v );
+				}
+
+			return fp;
+		}
+	}
+
 	public static class LoadFileTupleFromPatternTuple implements PairFunction< Integer, Integer, Tuple2< FPTuple, FPTuple > >
 	{
 
