@@ -542,7 +542,7 @@ public class Utility
 		}
 	}
 
-	public static class LoadFileFromPattern implements PairFunction< Integer, Integer, FloatProcessor >
+	public static class LoadFileFromPattern implements Function< Integer, FloatProcessor >
 	{
 
 		private final String pattern;
@@ -553,11 +553,11 @@ public class Utility
 		}
 
 		@Override
-		public Tuple2< Integer, FloatProcessor > call( final Integer k ) throws Exception
+		public FloatProcessor call( final Integer k ) throws Exception
 		{
 			final String path = String.format( pattern, k.intValue() );
 			final FloatProcessor fp = new ImagePlus( path ).getProcessor().convertToFloatProcessor();
-			return Utility.tuple2( k, fp );
+			return fp;
 		}
 	}
 

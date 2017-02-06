@@ -42,6 +42,8 @@ public class ScaleOptions
 
 	public final int stop;
 
+	public final int step;
+
 	public final boolean[] logMatrices;
 
 	public final int joinStepSize;
@@ -59,6 +61,7 @@ public class ScaleOptions
 			final String target,
 			final int start,
 			final int stop,
+			final int step,
 			final boolean[] logMatrices,
 			final int joinStepSize )
 	{
@@ -75,6 +78,7 @@ public class ScaleOptions
 		this.target = target;
 		this.start = start;
 		this.stop = stop;
+		this.step = step;
 		this.logMatrices = logMatrices;
 		this.joinStepSize = joinStepSize;
 	}
@@ -106,6 +110,8 @@ public class ScaleOptions
 	public static String START = "start";
 
 	public static String STOP = "stop";
+
+	public static String STEP = "step";
 
 	public static String LOG_MATRICES = "logMatrices";
 
@@ -183,6 +189,7 @@ public class ScaleOptions
 
 		final int start = json.get( START ).getAsInt();
 		final int stop = json.get( STOP ).getAsInt();
+		final int step = json.has( STEP ) ? Math.max( json.get( STEP ).getAsInt(), 1 ) : 1;
 
 		final boolean[] logMatrices = new boolean[ steps.length ];
 		if ( json.has( LOG_MATRICES ) )
@@ -223,6 +230,7 @@ public class ScaleOptions
 				target,
 				start,
 				stop,
+				step,
 				logMatrices,
 				joinStepSize );
 		//		System.out.println( defaultOptionsJson.toString() );

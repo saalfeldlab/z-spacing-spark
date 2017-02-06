@@ -10,6 +10,7 @@ import java.util.List;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.utility.Utility;
 
 import ij.ImagePlus;
@@ -56,6 +57,7 @@ public class SparkRender
 		final double scale = Math.pow( 2, options.scale );
 		final int start = options.start;
 		final int stop = options.stop;
+		final int step = options.step;
 		final String sourceFormat = options.source;
 		final String transformFormat = options.target + String.format( "/%02d/backward/", iteration ) + "%04d.tif";
 
@@ -65,25 +67,22 @@ public class SparkRender
 
 		final int width = img0.getWidth();
 		final int height = img0.getHeight();
-		final int size = stop - start;
+		final ArrayList< Integer > indices = Utility.arange( start, stop, step );
+		final Broadcast< ArrayList< Integer > > indicesBC = sc.broadcast( indices );
+		final int size = indices.size();
 
 		final long[] dim = new long[] { width, height, size };
 
 		final double[] radiiDouble = new double[] { radii[ 0 ], radii[ 1 ] };
 		final double[] stepsDouble = new double[] { steps[ 0 ], steps[ 1 ] };
 
-		final ArrayList< Integer > indices = Utility.arange( size );
-		final JavaPairRDD< Integer, FloatProcessor > sections = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( new Utility.LoadFileFromPattern( sourceFormat ) );
+		final JavaPairRDD< Integer, FloatProcessor > sections = sc.parallelize( Utility.arange( size ) ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( sourceFormat ) );
 
-		final JavaPairRDD< Integer, FloatProcessor > transforms = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( integer -> {
-			final ImagePlus imp = new ImagePlus( String.format( transformFormat, integer.intValue() ) );
-			final FloatProcessor fp = imp.getProcessor().convertToFloatProcessor();
-			return Utility.tuple2( integer, fp );
-		} );
+		final JavaPairRDD< Integer, FloatProcessor > transforms = sc.parallelize( indices ).mapToPair( arg0 -> Utility.tuple2( arg0, arg0 ) ).sortByKey().map( arg0 -> arg0._1() ).mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( transformFormat ) );
 
 		final JavaPairRDD< Integer, FloatProcessor > transformed = render( sc, sections, transforms, stepsDouble, radiiDouble, dim, scale );
 
-		write( sc, transformed, outputFormat, size );
+		write( sc, transformed.mapToPair( t -> new Tuple2<>( indicesBC.getValue().get( t._1() ), t._2() ) ), outputFormat, size );
 
 	}
 

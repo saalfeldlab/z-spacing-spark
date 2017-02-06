@@ -16,6 +16,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.storage.StorageLevel;
 import org.janelia.thickness.SparkInference.Variables;
 import org.janelia.thickness.inference.Options;
@@ -119,12 +120,13 @@ public class ZSpacing
 		final int imageScaleLevel = scaleOptions.scale;
 		final int start = scaleOptions.start;
 		final int stop = scaleOptions.stop;
-		final int size = stop - start;
+		final int step = scaleOptions.step;
+		final ArrayList< Integer > indices = Utility.arange( start, stop, step );
+		final int size = indices.size();
+		final Broadcast< ArrayList< Integer > > indicesBC = sc.broadcast( indices );
 
-		final ArrayList< Integer > indices = Utility.arange( size );
-		final JavaRDD< Integer > sortedIndexPairs = sc.parallelize( indices ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() );
-		final JavaPairRDD< Integer, FloatProcessor > sections =
-				sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() ).cache();
+		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		sections.cache();
 		sections.count();
 
@@ -140,7 +142,7 @@ public class ZSpacing
 				return new FloatProcessor( width, height, pixels );
 			} );
 		else
-			sectionMasks = sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+			sectionMasks = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 
 		final double[] startingCoordinates = new double[ size ];
 		for ( int i = 0; i < size; ++i )
@@ -173,8 +175,8 @@ public class ZSpacing
 		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, maskedSections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
 		sections.unpersist();
 
-		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
-		final JavaPairRDD< Integer, FloatProcessor > shiftMask = scaleOptions.shiftMask == null ? null : sortedIndexPairs.mapToPair( new Utility.LoadFileFromPattern( scaleOptions.shiftMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FloatProcessor > shiftMask = scaleOptions.shiftMask == null ? null : sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( scaleOptions.shiftMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 
 		final WeightsCalculator wc = shiftMask == null ? new NoWeightsCalculator( sc, size, dim ) : new OnlyShiftWeightsCalculator( shiftMask, dim );
 
@@ -277,10 +279,10 @@ public class ZSpacing
 			final JavaPairRDD< Integer, DPTuple > backwardImages = columnsAndSections.columnsToSections( sc, backward );
 
 			final String outputFormat = String.format( outputFolder, i ) + "/forward/%04d.tif";
-			final List< Tuple2< Integer, Boolean > > success = forwardImages.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormat ) ).collect();
+			final List< Tuple2< Integer, Boolean > > success = forwardImages.mapToPair( t -> new Tuple2<>( indicesBC.getValue().get( t._1() ), t._2() ) ).mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormat ) ).collect();
 
 			final String outputFormatBackward = String.format( outputFolder, i ) + "/backward/%04d.tif";
-			final List< Tuple2< Integer, Boolean > > successBackward = backwardImages.mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormatBackward ) ).collect();
+			final List< Tuple2< Integer, Boolean > > successBackward = backwardImages.mapToPair( t -> new Tuple2<>( indicesBC.getValue().get( t._1() ), t._2() ) ).mapToPair( new Utility.WriteToFormatStringDouble< Integer >( outputFormatBackward ) ).collect();
 
 			if ( scaleOptions.logMatrices[ i ] )
 			{
