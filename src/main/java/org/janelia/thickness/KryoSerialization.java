@@ -36,7 +36,7 @@ public class KryoSerialization
 		 * esotericsoftware.kryo.Kryo)
 		 */
 		@Override
-		public void registerClasses( Kryo kryo )
+		public void registerClasses( final Kryo kryo )
 		{
 			kryo.register( FloatProcessor.class, new FloatProcessorSerializer() );
 			kryo.register( DPTuple.class );
@@ -57,7 +57,7 @@ public class KryoSerialization
 		public static final boolean optimizePositive = true;
 
 		@Override
-		public FloatProcessor read( Kryo kryo, Input input, Class< FloatProcessor > type )
+		public FloatProcessor read( final Kryo kryo, final Input input, final Class< FloatProcessor > type )
 		{
 			final int width = input.readInt( optimizePositive );
 			final int height = input.readInt( optimizePositive );
@@ -72,12 +72,12 @@ public class KryoSerialization
 		}
 
 		@Override
-		public void write( Kryo kryo, Output output, FloatProcessor object )
+		public void write( final Kryo kryo, final Output output, final FloatProcessor object )
 		{
 			output.writeInt( object.getWidth(), optimizePositive );
 			output.writeInt( object.getHeight(), optimizePositive );
-			float[] data = ( float[] ) object.getPixels();
-			for ( float d : data )
+			final float[] data = ( float[] ) object.getPixels();
+			for ( final float d : data )
 				output.writeFloat( d );
 			output.writeDouble( object.getMin() );
 			output.writeDouble( object.getMax() );
