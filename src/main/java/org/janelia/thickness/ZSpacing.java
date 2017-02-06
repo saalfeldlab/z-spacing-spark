@@ -93,6 +93,9 @@ public class ZSpacing
 					.set( "spark.network.timeout", "600" )
 					.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 					.set( "spark.kryoserializer.buffer.max", "1g" )
+					.set( "spark.kryo.unsafe", "true" ) // supposed to give huge
+														// performance boost for
+														// primitive arrays
 					.set( "spark.kryo.registrator", KryoSerialization.Registrator.class.getName() );
 
 			final JavaSparkContext sc = new JavaSparkContext( conf );
