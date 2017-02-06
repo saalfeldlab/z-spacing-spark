@@ -3,6 +3,7 @@ package org.janelia.thickness;
 import java.io.File;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +17,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.storage.StorageLevel;
 import org.janelia.thickness.SparkInference.Variables;
@@ -38,6 +40,9 @@ import ij.io.FileSaver;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import loci.formats.FormatException;
+import pl.joegreen.lambdaFromString.LambdaCreationException;
+import pl.joegreen.lambdaFromString.LambdaFactory;
+import pl.joegreen.lambdaFromString.TypeReference;
 import scala.Tuple2;
 
 /**
@@ -63,7 +68,7 @@ public class ZSpacing
 		private boolean parsedSuccessfully;
 	}
 
-	public static void main( final String[] args ) throws FormatException, IOException
+	public static void main( final String[] args ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException
 	{
 
 		final Parameters p = new Parameters();
@@ -94,17 +99,34 @@ public class ZSpacing
 
 			run( sc, scaleOptions );
 
+
 			sc.close();
 		}
-
 	}
 
-	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions ) throws FormatException, IOException
+	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException
+	{
+		if ( scaleOptions.fileOpener == null )
+			run( sc, scaleOptions, new Utility.LoadFileFromPattern( scaleOptions.source ) );
+		else if ( Utility.classExists( scaleOptions.fileOpener ) )
+		{
+			LOG.info( "Using existing class for fileOpener: " + scaleOptions.fileOpener );
+			run( sc, scaleOptions, ( Function< Integer, FloatProcessor > ) Class.forName( scaleOptions.fileOpener ).getConstructor( String.class ).newInstance( scaleOptions.source ) );
+		}
+		else
+		{
+			final Function< Integer, FloatProcessor > fileOpener = LambdaFactory.get().createLambda( scaleOptions.fileOpener, new TypeReference< Function< Integer, FloatProcessor > >()
+			{} );
+			run( sc, scaleOptions, fileOpener );
+		}
+	}
+
+
+	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions, final Function< Integer, FloatProcessor > fileOpener ) throws FormatException, IOException
 	{
 
 		final Logger log = LOG;// LogManager.getRootLogger();
 
-		final String sourcePattern = scaleOptions.source;
 		final String root = scaleOptions.target;
 		final String outputFolder = root + "/%02d";
 		final int imageScaleLevel = scaleOptions.scale;
@@ -114,10 +136,9 @@ public class ZSpacing
 		final ArrayList< Integer > indices = Utility.arange( start, stop, step );
 		final int size = indices.size();
 		final Broadcast< ArrayList< Integer > > indicesBC = sc.broadcast( indices );
-		System.out.println( size );
 
 		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() ).cache();
-		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
+		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( fileOpener ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		sections.cache();
 		sections.count();
 

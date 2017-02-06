@@ -774,4 +774,17 @@ public class Utility
 		Arrays.fill( a, v );
 		return a;
 	}
+
+	public static boolean classExists( final String className )
+	{
+		try
+		{
+			Class.forName( className );
+			return true;
+		}
+		catch ( final ClassNotFoundException e )
+		{
+			return false;
+		}
+	}
 }

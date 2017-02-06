@@ -48,6 +48,8 @@ public class ScaleOptions
 
 	public final int joinStepSize;
 
+	public final String fileOpener;
+
 	public ScaleOptions(
 			final int[][] steps,
 			final int[][] radii,
@@ -63,7 +65,7 @@ public class ScaleOptions
 			final int stop,
 			final int step,
 			final boolean[] logMatrices,
-			final int joinStepSize )
+			final int joinStepSize, final String fileOpener )
 	{
 		super();
 		this.steps = steps;
@@ -81,6 +83,7 @@ public class ScaleOptions
 		this.step = step;
 		this.logMatrices = logMatrices;
 		this.joinStepSize = joinStepSize;
+		this.fileOpener = fileOpener;
 	}
 
 	public static String SCALE = "scale";
@@ -116,6 +119,8 @@ public class ScaleOptions
 	public static String LOG_MATRICES = "logMatrices";
 
 	public static String JOIN_STEP_SIZE = "joinStepSize";
+
+	public static String FILE_OPENER = "fileOpener";
 
 	@Override
 	public String toString()
@@ -217,6 +222,8 @@ public class ScaleOptions
 
 		final int joinStepSize = Math.max( json.has( JOIN_STEP_SIZE ) ? json.get( JOIN_STEP_SIZE ).getAsInt() : 0, 2 * opts[ 0 ].comparisonRange );
 
+		final String fileOpener = json.get( FILE_OPENER ).getAsString();
+
 		return new ScaleOptions(
 				steps,
 				radii,
@@ -232,7 +239,7 @@ public class ScaleOptions
 				stop,
 				step,
 				logMatrices,
-				joinStepSize );
+				joinStepSize, fileOpener );
 		//		System.out.println( defaultOptionsJson.toString() );
 	}
 
