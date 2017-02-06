@@ -92,6 +92,7 @@ public class ZSpacing
 					.setAppName( "ZSpacing" )
 					.set( "spark.network.timeout", "600" )
 					.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+					.set( "spark.kryoserializer.buffer.max", "1g" )
 					.set( "spark.kryo.registrator", KryoSerialization.Registrator.class.getName() );
 
 			final JavaSparkContext sc = new JavaSparkContext( conf );
@@ -133,6 +134,8 @@ public class ZSpacing
 	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions, final Function< Integer, FloatProcessor > fileOpener ) throws FormatException, IOException
 	{
 
+		final ArrayList< Object > globalUnpersistList = new ArrayList<>();
+
 		final Logger log = LOG;// LogManager.getRootLogger();
 
 		final String root = scaleOptions.target;
@@ -144,11 +147,13 @@ public class ZSpacing
 		final ArrayList< Integer > indices = Utility.arange( start, stop, step );
 		final int size = indices.size();
 		final Broadcast< ArrayList< Integer > > indicesBC = sc.broadcast( indices );
+		globalUnpersistList.add( indicesBC );
 
 		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() ).cache();
 		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( fileOpener ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		sections.cache();
 		sections.count();
+		globalUnpersistList.add( sortedIndices );
 
 		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2();
 		final int width = firstImg.getWidth();
@@ -173,6 +178,7 @@ public class ZSpacing
 		JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > variables = sc
 				.parallelizePairs( coordinatesList, 1 )
 				.mapValues( c -> new SparkInference.Variables( c, Utility.singleValueArray( size, 1.0 ), new double[ 0 ] ) );
+		globalUnpersistList.add( variables );
 
 		final int[][] radiiArray = scaleOptions.radii;
 		final int[][] stepsArray = scaleOptions.steps;
@@ -192,7 +198,7 @@ public class ZSpacing
 
 		final JavaPairRDD< Integer, ImageAndMask > maskedSections = sections.join( sectionMasks ).mapValues( fps -> new ImageAndMask( fps._1(), fps._2() ) );
 
-		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, maskedSections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_ONLY() );
+		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, maskedSections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_AND_DISK() );
 		sections.unpersist();
 
 		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
@@ -248,14 +254,15 @@ public class ZSpacing
 			variables.unpersist();
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, Weights > masks = wc.calculate( currentOffset, currentStep );
-			masks.cache();
+			masks.persist( StorageLevel.MEMORY_AND_DISK() );
 			unpersistList.add( masks );
 
 			//			final JavaPairRDD< Tuple2< Integer, Integer >, FloatProcessor > matrices = matrixGenerator.generateMatrices( currentStep, currentOffset, options[ i ].comparisonRange );
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matrices = computer.run( new DefaultMatrixGenerator.Factory( dim ), options[ i ].comparisonRange, currentStep, currentOffset );
-			matrices.cache();
+			matrices.persist( StorageLevel.MEMORY_AND_DISK() );
+			unpersistList.add( matrices );
 
-			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Calculated " + matrices.count() + " matrices" );
+			LOG.info( "Calculated " + matrices.count() + " matrices" );
 
 			if ( scaleOptions.logMatrices[ i ] )
 			{
@@ -270,31 +277,30 @@ public class ZSpacing
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > result =
 					SparkInference.inferCoordinates( sc, matrices, variablesAndWeights, options[ i ], lutPattern );
-			result.cache();
+			result.persist( StorageLevel.MEMORY_AND_DISK() );
 			final long t0Inference = System.nanoTime();
 			result.count();
 			final long t1Inference = System.nanoTime();
 			final long dtInference = t1Inference - t0Inference;
-			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Inference done! (" + dtInference + "ns) " );
+			LOG.info( "Inference done! (" + dtInference + "ns) " );
 
-			// last occurence of matrices, unpersist!
-			matrices.unpersist();
 
 			// log success and failure
 			final String successAndFailurePath = String.format( outputFolder, i ) + "/successAndFailure.tif";
 			final ByteProcessor ip = LogSuccessAndFailure.log( sc, result, currentDim );
 			Files.createDirectories( new File( successAndFailurePath ).getParentFile().toPath() );
-			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
+			LOG.info( "Wrote status image? " + new FileSaver( new ImagePlus( "", ip ) ).saveAsTiff( successAndFailurePath ) );
 
 			final ColumnsAndSections columnsAndSections = new ColumnsAndSections( currentDim, size );
 			variables.unpersist();
 			variables = result;
-			variables.cache();
+			variables.persist( StorageLevel.MEMORY_AND_DISK() );
 			variables.count();
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > coordinates = variables.mapValues( v -> v.coordinates );
 
-			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).cache();
+			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > backward = Render.invert( sc, coordinates ).persist( StorageLevel.MEMORY_AND_DISK() );
+			unpersistList.add( backward );
 			final JavaPairRDD< Integer, DPTuple > forwardImages = columnsAndSections.columnsToSections( sc, coordinates );
 			final JavaPairRDD< Integer, DPTuple > backwardImages = columnsAndSections.columnsToSections( sc, backward );
 
@@ -347,6 +353,16 @@ public class ZSpacing
 					( ( JavaRDD< ? > ) o ).unpersist();
 			}
 
+		}
+
+		for ( final Object o : globalUnpersistList )
+		{
+			if ( o instanceof JavaPairRDD< ?, ? > )
+				( ( JavaPairRDD< ?, ? > ) o ).unpersist();
+			if ( o instanceof JavaRDD< ? > )
+				( ( JavaRDD< ? > ) o ).unpersist();
+			if ( o instanceof Broadcast< ? > )
+				( ( Broadcast< ? > ) o ).doDestroy( false );
 		}
 
 		for ( final Tuple2< Long, Long > t : times )

@@ -8,21 +8,7 @@ import net.imglib2.util.RealSum;
 public class Correlations
 {
 
-	public static class Output
-	{
-		public final double corr;
-
-		public final double weight;
-
-		public Output( final double corr, final double weight )
-		{
-			super();
-			this.corr = corr;
-			this.weight = weight;
-		}
-	}
-
-	public static Output calculate( final ImageAndMask img1, final ImageAndMask img2 )
+	public static CorrelationAndWeight calculate( final ImageAndMask img1, final ImageAndMask img2 )
 	{
 		final RealSum sumA = new RealSum();
 		final RealSum sumAA = new RealSum();
@@ -56,6 +42,6 @@ public class Correlations
 		final double sumbb = sumBB.getSum();
 		final double sumab = sumAB.getSum();
 
-		return new Output( ( n * sumab - suma * sumb ) / Math.sqrt( n * sumaa - suma * suma ) / Math.sqrt( n * sumbb - sumb * sumb ), n );
+		return new CorrelationAndWeight( ( n * sumab - suma * sumb ) / Math.sqrt( n * sumaa - suma * suma ) / Math.sqrt( n * sumbb - sumb * sumb ), n );
 	}
 }

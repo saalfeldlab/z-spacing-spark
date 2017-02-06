@@ -8,7 +8,6 @@ import java.util.Map.Entry;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
-import org.janelia.thickness.similarity.Correlations.Output;
 import org.janelia.thickness.utility.Utility;
 
 import ij.process.FloatProcessor;
@@ -92,9 +91,9 @@ public class TranslationInvariantMatrixGenerator implements MatrixGenerator
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matrices = averagesIndexedByXYTuples
 				.reduceByKey( new Utility.ReduceMapsByUnion< Tuple2< Integer, Integer >, Double, HashMap< Tuple2< Integer, Integer >, Double > >() )
 				.mapValues( hm -> {
-					final HashMap< Tuple2< Integer, Integer >, Output > result = new HashMap< >();
+					final HashMap< Tuple2< Integer, Integer >, CorrelationAndWeight > result = new HashMap< >();
 					for ( final Entry< Tuple2< Integer, Integer >, Double > e : hm.entrySet() )
-						result.put( e.getKey(), new Output( e.getValue(), 1.0 ) );
+						result.put( e.getKey(), new CorrelationAndWeight( e.getValue(), 1.0 ) );
 					return result;
 				} )
 				.mapToPair( new DefaultMatrixGenerator.MapToFloatProcessor( size, startIndex ) )
