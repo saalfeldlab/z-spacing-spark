@@ -97,16 +97,6 @@ public class ZSpacing
 			sc.close();
 		}
 
-
-		final SparkConf conf = new SparkConf().setAppName( "ZSpacing" );
-
-		final JavaSparkContext sc = new JavaSparkContext( conf );
-
-		final String scaleOptionsPath = args[ 0 ];
-		final ScaleOptions scaleOptions = ScaleOptions.createFromFile( scaleOptionsPath );
-
-		run( sc, scaleOptions );
-
 	}
 
 	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions ) throws FormatException, IOException
@@ -124,6 +114,7 @@ public class ZSpacing
 		final ArrayList< Integer > indices = Utility.arange( start, stop, step );
 		final int size = indices.size();
 		final Broadcast< ArrayList< Integer > > indicesBC = sc.broadcast( indices );
+		System.out.println( size );
 
 		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() ).cache();
 		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( sourcePattern ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
@@ -335,7 +326,6 @@ public class ZSpacing
 			log.info( String.format( "%s: Run time for complete iteration: %25dms", MethodHandles.lookup().lookupClass().getSimpleName(), diff ) );
 		}
 
-		sc.close();
 	}
 
 }
