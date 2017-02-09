@@ -9,10 +9,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
@@ -20,9 +22,13 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.storage.StorageLevel;
+import org.janelia.thickness.SparkInference.Input;
 import org.janelia.thickness.SparkInference.Variables;
 import org.janelia.thickness.inference.Options;
+import org.janelia.thickness.kryo.KryoSerialization;
+import org.janelia.thickness.partition.UniformPartitioner;
 import org.janelia.thickness.similarity.ComputeMatricesChunked;
+import org.janelia.thickness.similarity.ComputeMatricesChunked.PartitionerFactory;
 import org.janelia.thickness.similarity.DefaultMatrixGenerator;
 import org.janelia.thickness.similarity.ImageAndMask;
 import org.janelia.thickness.utility.DPTuple;
@@ -68,7 +74,7 @@ public class ZSpacing
 		private boolean parsedSuccessfully;
 	}
 
-	public static void main( final String[] args ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException
+	public static void main( final String[] args ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException, InterruptedException, ExecutionException
 	{
 
 		final Parameters p = new Parameters();
@@ -94,21 +100,23 @@ public class ZSpacing
 					.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 					.set( "spark.kryoserializer.buffer.max", "1g" )
 					.set( "spark.kryo.unsafe", "true" ) // supposed to give huge
-														// performance boost for
-														// primitive arrays
+					// performance boost for
+					// primitive arrays
 					.set( "spark.kryo.registrator", KryoSerialization.Registrator.class.getName() );
 
 			final JavaSparkContext sc = new JavaSparkContext( conf );
 			final ScaleOptions scaleOptions = ScaleOptions.createFromFile( p.configPath );
 
+			//			sc.setLogLevel( "DEBUG" );
+
 			run( sc, scaleOptions );
 
 
-			sc.close();
+			sc.stop();
 		}
 	}
 
-	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException
+	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException, InterruptedException, ExecutionException
 	{
 		if ( scaleOptions.fileOpener == null )
 			run( sc, scaleOptions, new Utility.LoadFileFromPattern( scaleOptions.source ) );
@@ -134,7 +142,7 @@ public class ZSpacing
 	}
 
 
-	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions, final Function< Integer, FloatProcessor > fileOpener ) throws FormatException, IOException
+	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions, final Function< Integer, FloatProcessor > fileOpener ) throws FormatException, IOException, InterruptedException, ExecutionException
 	{
 
 		final ArrayList< Object > globalUnpersistList = new ArrayList<>();
@@ -152,7 +160,7 @@ public class ZSpacing
 		final Broadcast< ArrayList< Integer > > indicesBC = sc.broadcast( indices );
 		globalUnpersistList.add( indicesBC );
 
-		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey().map( arg0 -> arg0._1() ).cache();
+		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey( true, Math.min( size, sc.defaultParallelism() ) ).map( arg0 -> arg0._1() ).cache();
 		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( fileOpener ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
 		sections.cache();
 		sections.count();
@@ -201,7 +209,9 @@ public class ZSpacing
 
 		final JavaPairRDD< Integer, ImageAndMask > maskedSections = sections.join( sectionMasks ).mapValues( fps -> new ImageAndMask( fps._1(), fps._2() ) );
 
-		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, maskedSections, scaleOptions.joinStepSize, maxRange, dim, size, StorageLevel.MEMORY_AND_DISK() );
+		//		final RangeBasedPartitionerFactory fac = new ComputeMatricesChunked.RangeBasedPartitionerFactory();
+		final PartitionerFactory fac = ( min, max, defaultParallelism ) -> new UniformPartitioner( defaultParallelism );
+		final ComputeMatricesChunked computer = new ComputeMatricesChunked( sc, maskedSections, scaleOptions.joinStepSize, maxRange, dim, size, fac, StorageLevel.DISK_ONLY() );
 		sections.unpersist();
 
 		final JavaPairRDD< Integer, FloatProcessor > estimateMask = scaleOptions.estimateMask == null ? null : sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( new Utility.LoadFileFromPattern( scaleOptions.estimateMask ) ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
@@ -278,8 +288,16 @@ public class ZSpacing
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > variablesAndWeights = currentVariables.join( masks );
 
+
+			final int nRecords = ( int ) Math.min( matrices.count(), Integer.MAX_VALUE );
+			final int nPartitions = Math.min( sc.defaultParallelism(), nRecords );
+			final HashPartitioner hp = new HashPartitioner( Math.min( sc.defaultParallelism(), nRecords ) );
+			// UniformPartitioner doesn't work really
+			//			final UniformPartitioner rp = new UniformPartitioner( Math.min( sc.defaultParallelism(), nRecords ) );
+			final JavaPairRDD< Tuple2< Integer, Integer >, Input > input = matrices.join( variablesAndWeights, nPartitions ).mapValues( t -> new Input( t._1()._1(), t._1()._2(), t._2()._1(), t._2()._2() ) );
+
 			final JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > result =
-					SparkInference.inferCoordinates( sc, matrices, variablesAndWeights, options[ i ], lutPattern );
+					SparkInference.inferCoordinates( sc, input, options[ i ], lutPattern );
 			result.persist( StorageLevel.MEMORY_AND_DISK() );
 			final long t0Inference = System.nanoTime();
 			result.count();

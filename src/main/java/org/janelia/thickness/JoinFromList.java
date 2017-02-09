@@ -1,9 +1,13 @@
 package org.janelia.thickness;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
@@ -18,13 +22,26 @@ import scala.Tuple2;
 public class JoinFromList
 {
 
-	public static < K, L extends List< K >, M extends Map< K, L >, V > JavaPairRDD< Tuple2< K, K >, Tuple2< V, V > > projectOntoSelf( final JavaPairRDD< K, V > rdd, final Broadcast< M > keyPairList )
+	public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	static
+	{
+		LOG.setLevel( Level.INFO );
+	}
+
+	public static < K, L extends List< K >, M extends Map< K, L >, V > JavaPairRDD< Tuple2< K, K >, Tuple2< V, V > > projectOntoSelf( final JavaPairRDD< K, V > rdd, final Broadcast< M > keyPairList, final int numPartitions )
 	{
 
-		final JavaPairRDD< Tuple2< K, V >, L > keysImagesListOfKeys = rdd.mapToPair( new AssociateWith< K, V, L, M >( keyPairList ) ).mapToPair( new MoveToKey< K, V, L >() );
-		final JavaPairRDD< K, Tuple2< K, V > > flat = keysImagesListOfKeys.flatMapToPair( new FlatOut< Tuple2< K, V >, K, L >() ).mapToPair( new Utility.SwapKeyValue< Tuple2< K, V >, K >() );
+		final JavaPairRDD< Tuple2< K, V >, L > keysImagesListOfKeys = rdd.mapToPair( new AssociateWith<>( keyPairList ) ).mapToPair( new MoveToKey<>() );
+		final JavaPairRDD< K, Tuple2< K, V > > flat = keysImagesListOfKeys.flatMapToPair( new FlatOut<>() ).mapToPair( new Utility.SwapKeyValue<>() );
+		//		LOG.info( "Coalescing rdd from " + flat.getNumPartitions() + " to " + numPartitions + "partitions." );
+		// do we need a shuffle here?
+		final JavaPairRDD< K, Tuple2< K, V > > spreadOut = flat;// flat.coalesce(
+		// numPartitions,
+		// true );
+		//		LOG.info( "Partitioners  - rdd: " + rdd.partitioner() + " - flat: " + flat.partitioner() + " - spreadOut: " + spreadOut.partitioner() );
+		//		LOG.info( "numPartitions - rdd: " + rdd.getNumPartitions() + " - flat: " + flat.getNumPartitions() + " - spreadOut: " + spreadOut.getNumPartitions() );
 
-		final JavaPairRDD< Tuple2< K, K >, Tuple2< V, V > > joint = flat.join( rdd ).mapToPair( new RearrangeSameKeysAndValues< K, V >() );
+		final JavaPairRDD< Tuple2< K, K >, Tuple2< V, V > > joint = spreadOut.join( rdd ).mapToPair( new Rearrange<>() );
 
 		return joint;
 	}
@@ -89,6 +106,12 @@ public class JoinFromList
 	public static class FlatOut< T, U, L extends Iterable< U > > implements PairFlatMapFunction< Tuple2< T, L >, T, U >
 	{
 
+		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
+
 		class MyIterator implements Iterator< Tuple2< T, U > >
 		{
 
@@ -128,6 +151,7 @@ public class JoinFromList
 		@Override
 		public Iterator< Tuple2< T, U > > call( final Tuple2< T, L > t ) throws Exception
 		{
+			LOG.debug( "Flat mapping iterable " + t._2() + " with key " + t._1() );
 			return new MyIterator( t._2().iterator(), t._1() );
 		}
 	}
@@ -145,6 +169,12 @@ public class JoinFromList
 	public static class Rearrange< K1, K2, V1, V2 > implements PairFunction< Tuple2< K1, Tuple2< Tuple2< K2, V2 >, V1 > >, Tuple2< K1, K2 >, Tuple2< V1, V2 > >
 	{
 
+		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
+
 		private static final long serialVersionUID = -5511873062115999278L;
 
 		@Override
@@ -152,6 +182,7 @@ public class JoinFromList
 		{
 			final Tuple2< Tuple2< K2, V2 >, V1 > t2 = t._2();
 			final Tuple2< K2, V2 > t21 = t2._1();
+			LOG.debug( "Rerranging... new key tuple: " + Utility.tuple2( t._1(), t21._1() ) );
 			return Utility.tuple2( Utility.tuple2( t._1(), t21._1() ), Utility.tuple2( t2._2(), t21._2() ) );
 		}
 	}

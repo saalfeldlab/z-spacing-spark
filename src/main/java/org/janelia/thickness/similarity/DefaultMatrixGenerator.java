@@ -1,12 +1,18 @@
 package org.janelia.thickness.similarity;
 
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
@@ -16,13 +22,14 @@ import org.apache.spark.broadcast.Broadcast;
 import org.janelia.thickness.BlockCoordinates;
 import org.janelia.thickness.utility.Utility;
 
+import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessible;
-import net.imglib2.img.array.ArrayImg;
-import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.img.basictypeaccess.array.FloatArray;
-import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.img.Img;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
 import net.imglib2.view.Views;
 import scala.Tuple2;
@@ -32,6 +39,12 @@ import scala.Tuple2;
  */
 public class DefaultMatrixGenerator implements MatrixGenerator
 {
+
+	public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	static
+	{
+		LOG.setLevel( Level.INFO );
+	}
 
 	public static class Factory implements MatrixGenerator.Factory
 	{
@@ -71,8 +84,14 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 			final int size )
 	{
 
+		if ( LOG.isDebugEnabled() )
+			LOG.debug( "Calculating matrix for range=" + range + " " + " mindiff=" + getMinAbsDiff( sectionPairs.keys() ) + " " + " maxdiff=" + getMaxAbsDiff( sectionPairs.keys() ) + " nPairs=" + sectionPairs.count() );
+
 		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > pairsWithinRange =
 				sectionPairs.filter( new SelectInRange<>( range ) );
+
+		if ( LOG.isDebugEnabled() )
+			LOG.debug( "After filtering: Still " + pairsWithinRange.count() + " pairs" );
 
 		final BlockCoordinates correlationBlocks = new BlockCoordinates( blockRadius, stepSize );
 
@@ -89,8 +108,35 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		return matrices;
 	}
 
+	public static int getMinAbsDiff( final JavaRDD< Tuple2< Integer, Integer > > rdd )
+	{
+		return rdd.map( new AbsDiff() ).min( Comparator.naturalOrder() );
+	}
+
+	public static int getMaxAbsDiff( final JavaRDD< Tuple2< Integer, Integer > > rdd )
+	{
+		return rdd.map( new AbsDiff() ).max( Comparator.naturalOrder() );
+	}
+
+	public static class AbsDiff implements Function< Tuple2< Integer, Integer >, Integer >
+	{
+
+		@Override
+		public Integer call( final Tuple2< Integer, Integer > v1 ) throws Exception
+		{
+			return Math.abs( v1._1() - v1._2() );
+		}
+
+	}
+
 	public static class SelectInRange< V > implements Function< Tuple2< Tuple2< Integer, Integer >, V >, Boolean >
 	{
+
+		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
 
 		/**
 		 *
@@ -109,12 +155,20 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 		{
 			final Tuple2< Integer, Integer > indices = t._1();
 			final int diff = indices._1().intValue() - indices._2().intValue();
-			return Math.abs( diff ) <= range;
+			final boolean accept = Math.abs( diff ) <= range;
+			LOG.debug( "Accepting " + t + "? " + accept + " (range=" + range + ")" );
+			return accept;
 		}
 	}
 
 	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > >, Tuple2< Integer, Integer >, HashMap< Tuple2< Integer, Integer >, CorrelationAndWeight > >
 	{
+
+		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
 
 		/**
 		 *
@@ -146,13 +200,20 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 			final int[] currentStop = new int[ 2 ];
 			final HashMap< Tuple2< Integer, Integer >, CorrelationAndWeight > result = new HashMap<>();
 
-			final ArrayImg< FloatType, FloatArray > i1 = ArrayImgs.floats( ( float[] ) fp1.image.getPixels(), w, h );
-			final ArrayImg< FloatType, FloatArray > i2 = ArrayImgs.floats( ( float[] ) fp2.image.getPixels(), w, h );
-			final ArrayImg< FloatType, FloatArray > w1 = ArrayImgs.floats( ( float[] ) fp1.mask.getPixels(), w, h );
-			final ArrayImg< FloatType, FloatArray > w2 = ArrayImgs.floats( ( float[] ) fp2.mask.getPixels(), w, h );
+			final Img< ? extends RealType< ? > > i1 = ImageJFunctions.wrapReal( new ImagePlus( "", fp1.image ) );
+			final Img< ? extends RealType< ? > > i2 = ImageJFunctions.wrapReal( new ImagePlus( "", fp2.image ) );
+			final Img< ? extends RealType< ? > > w1 = ImageJFunctions.wrapReal( new ImagePlus( "", fp1.mask ) );
+			final Img< ? extends RealType< ? > > w2 = ImageJFunctions.wrapReal( new ImagePlus( "", fp2.mask ) );
 
-			final RandomAccessible< Pair< FloatType, FloatType > > p1 = Views.pair( i1, w1 );
-			final RandomAccessible< Pair< FloatType, FloatType > > p2 = Views.pair( i2, w2 );
+			assert i1.dimension( 0 ) == w && i1.dimension( 1 ) == h;
+			assert i2.dimension( 0 ) == w && i2.dimension( 1 ) == h;
+			assert w1.dimension( 0 ) == w && w1.dimension( 1 ) == h;
+			assert w2.dimension( 0 ) == w && w2.dimension( 1 ) == h;
+
+			LOG.debug( "Calculating correlations for images and masks: " + Arrays.toString( Intervals.dimensionsAsLongArray( i1 ) ) + "\n" + Arrays.toString( Intervals.dimensionsAsLongArray( i2 ) ) + "\n" + Arrays.toString( Intervals.dimensionsAsLongArray( w1 ) ) + "\n" + Arrays.toString( Intervals.dimensionsAsLongArray( w2 ) ) + "\n" );
+
+			final RandomAccessible< ? extends Pair< ? extends RealType< ? >, ? extends RealType< ? > > > p1 = Views.pair( i1, w1 );
+			final RandomAccessible< ? extends Pair< ? extends RealType< ? >, ? extends RealType< ? > > > p2 = Views.pair( i2, w2 );
 
 			for ( final BlockCoordinates.Coordinate coord : coordinates.getValue() )
 			{
@@ -167,8 +228,9 @@ public class DefaultMatrixGenerator implements MatrixGenerator
 
 				final FinalInterval interval = new FinalInterval( Arrays.stream( currentStart ).mapToLong( i -> i ).toArray(), currentMax );
 
-				final CorrelationAndWeight correlation = CorrelationsImgLib.calculate( p1, p2, interval );
 
+				final CorrelationAndWeight correlation = CorrelationsImgLib.calculate( p1, p2, interval );
+				LOG.debug( "Got correlation " + correlation + " at position " + coord.toString() );
 				result.put( local, correlation );
 			}
 			return Utility.tuple2( t._1(), result );

@@ -222,7 +222,7 @@ public class ScaleOptions
 
 		final int joinStepSize = Math.max( json.has( JOIN_STEP_SIZE ) ? json.get( JOIN_STEP_SIZE ).getAsInt() : 0, 2 * opts[ 0 ].comparisonRange );
 
-		final String fileOpener = json.get( FILE_OPENER ).getAsString();
+		final String fileOpener = json.has( FILE_OPENER ) ? json.get( FILE_OPENER ).getAsString() : null;
 
 		return new ScaleOptions(
 				steps,

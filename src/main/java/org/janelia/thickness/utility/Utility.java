@@ -2,16 +2,23 @@ package org.janelia.thickness.utility;
 
 import java.io.File;
 import java.io.Serializable;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
@@ -23,6 +30,7 @@ import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
+import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import loci.formats.FileStitcher;
@@ -129,11 +137,19 @@ public class Utility
 	 */
 	public static class SwapKeyValue< K, V > implements PairFunction< Tuple2< K, V >, V, K >
 	{
+
+		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
+
 		private static final long serialVersionUID = -4173593608656179460L;
 
 		@Override
 		public Tuple2< V, K > call( final Tuple2< K, V > t ) throws Exception
 		{
+			LOG.debug( "SWAPPING KEY VALUE: " + t );
 			return t.swap();
 		}
 	}
@@ -392,13 +408,13 @@ public class Utility
 		}
 	}
 
-	public static class EntryToTuple< K, V1, V2, E extends Map.Entry< V1, V2 > > implements PairFunction< Tuple2< K, E >, K, Tuple2< V1, V2 > >
+	public static class EntryToTuple< V1, V2, E extends Map.Entry< V1, V2 > > implements Function< E, Tuple2< V1, V2 > >
 	{
 
 		@Override
-		public Tuple2< K, Tuple2< V1, V2 > > call( final Tuple2< K, E > t ) throws Exception
+		public Tuple2< V1, V2 > call( final E e ) throws Exception
 		{
-			return Utility.tuple2( t._1(), Utility.tuple2( t._2().getKey(), t._2().getValue() ) );
+			return Utility.tuple2( e.getKey(), e.getValue() );
 		}
 	}
 
@@ -818,4 +834,25 @@ public class Utility
 			return false;
 		}
 	}
+
+	public static FloatProcessor constValueFloatProcessor( final int width, final int height, final float val )
+	{
+		final FloatProcessor fp = new FloatProcessor( width, height );
+		fp.add( val );
+		return fp;
+	}
+
+	public static ByteProcessor constValueByteProcessor( final int width, final int height, final byte val )
+	{
+		final ByteProcessor bp = new ByteProcessor( width, height );
+		bp.add( val );
+		return bp;
+	}
+
+	public static < T, U > Stream< Tuple2< T, U > > combineAsStream( final List< T > c1, final List< U > c2 )
+	{
+		assert c1.size() == c2.size(): "Size mismatch!";
+		return IntStream.range( 0, c1.size() ).mapToObj( i -> new Tuple2<>( c1.get( i ), c2.get( i ) ) );
+	}
+
 }

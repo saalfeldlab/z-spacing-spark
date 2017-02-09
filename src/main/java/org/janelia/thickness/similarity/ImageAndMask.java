@@ -2,15 +2,15 @@ package org.janelia.thickness.similarity;
 
 import java.io.Serializable;
 
-import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 
 public class ImageAndMask implements Serializable
 {
-	public final FloatProcessor image;
+	public final ImageProcessor image;
 
-	public final FloatProcessor mask;
+	public final ImageProcessor mask;
 
-	public ImageAndMask( final FloatProcessor image, final FloatProcessor mask )
+	public ImageAndMask( final ImageProcessor image, final ImageProcessor mask )
 	{
 		super();
 		this.image = image;

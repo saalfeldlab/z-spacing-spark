@@ -77,14 +77,13 @@ public class SparkInference
 
 	public static JavaPairRDD< Tuple2< Integer, Integer >, Variables > inferCoordinates(
 			final JavaSparkContext sc,
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matricesAndEstimateWeights,
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > startingVariablesAndWeights,
+			final JavaPairRDD< Tuple2< Integer, Integer >, Input > matricesWithStartingCoordinates,
 			final Options options,
 			final String pattern )
 	{
-		final JavaPairRDD< Tuple2< Integer, Integer >, Input > matricesWithStartingCoordinates = matricesAndEstimateWeights
-				.join( startingVariablesAndWeights )
-				.mapValues( t -> new Input( t._1()._1(), t._1()._2(), t._2()._1(), t._2()._2() ) );
+		//		final JavaPairRDD< Tuple2< Integer, Integer >, Input > matricesWithStartingCoordinates = matricesAndEstimateWeights
+		//				.join( startingVariablesAndWeights )
+		//				.mapValues( t -> new Input( t._1()._1(), t._1()._2(), t._2()._1(), t._2()._2() ) );
 		final JavaPairRDD< Tuple2< Integer, Integer >, Variables > result =
 				matricesWithStartingCoordinates.mapToPair( new Inference< Tuple2< Integer, Integer > >( options, pattern ) );
 

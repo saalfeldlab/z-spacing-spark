@@ -3,18 +3,27 @@ package org.janelia.thickness.similarity;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.spark.Partitioner;
 import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDDLike;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.storage.StorageLevel;
 import org.janelia.thickness.JoinFromList;
 import org.janelia.thickness.utility.Utility;
 
+import ij.ImagePlus;
+import ij.io.FileSaver;
 import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 import scala.Tuple2;
 import scala.Tuple5;
 
@@ -24,7 +33,78 @@ import scala.Tuple5;
 public class ComputeMatricesChunked
 {
 
-	public static Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	public static interface PartitionerFactory
+	{
+
+		public Partitioner create( int min, int max, int defaultParallelism );
+
+	}
+
+	public static class RangeBasedPartitionerFactory implements PartitionerFactory
+	{
+		@Override
+		public Partitioner create( final int min, final int max, final int numPartitions )
+		{
+			return new RangeBasedPartitioner( min, max, numPartitions );
+		}
+
+	}
+
+	public static class RangeBasedPartitioner extends Partitioner
+	{
+		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
+
+		private final int min;
+
+		private final int max;
+
+		private final int n;
+
+		private final int numPartitions;
+
+		private final double rangePerPartition;
+
+		public RangeBasedPartitioner( final int min, final int max, final int numPartitions )
+		{
+			super();
+			this.min = min;
+			this.max = max;
+			this.n = max - min;
+			this.numPartitions = Math.min( numPartitions, this.n );
+			this.rangePerPartition = n * 1.0 / this.numPartitions;
+			LOG.info( this.min + " " + this.max + " " + this.n + " " + this.numPartitions + " " + this.rangePerPartition );
+		}
+
+		@Override
+		public int numPartitions()
+		{
+			return numPartitions;
+		}
+
+		@Override
+		public int getPartition( final Object o )
+		{
+
+			LOG.debug( "Getting partition for " + o + ": " + o.getClass().getSimpleName() );
+			if ( o instanceof Integer )
+			{
+				final int part = ( int ) ( ( ( ( Integer ) o ).intValue() - min ) / rangePerPartition );
+				LOG.debug( "Getting partition for " + o + ": " + part );
+				return part;
+			}
+
+			if ( o instanceof Tuple2 )
+				return getPartition( ( ( Tuple2< ?, ? > ) o )._1() );
+
+			return 0;
+		}
+	}
+
+	public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
 	static
 	{
 		LOG.setLevel( Level.INFO );
@@ -51,7 +131,8 @@ public class ComputeMatricesChunked
 			final int maxRange,
 			final int[] dim,
 			final long nImages,
-			final StorageLevel pairPersistenceLevel )
+			final PartitionerFactory partitionerFactory,
+			final StorageLevel pairPersistenceLevel ) throws InterruptedException, ExecutionException
 	{
 		this.sc = sc;
 		this.chunkStepSize = stepSize;
@@ -79,11 +160,50 @@ public class ComputeMatricesChunked
 					al.add( k );
 				keyPairList.put( i, al );
 			}
-			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > pairs =
-					JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ) ).persist( pairPersistenceLevel );
+
+			if ( LOG.isDebugEnabled() )
+			{
+
+				final List< Tuple2< Integer, Long > > its = recordsPerPartition( rdd );
+
+				LOG.debug( "Record distribution: " + " " + lower + " " + upper + " " + size + " " + rdd.count() );
+				for ( final Tuple2< Integer, Long > it : its )
+					LOG.debug( it );
+			}
+
+			LOG.debug( "Projecting onto self for rdd with: " + rdd.count() + " records." );
+
+			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > pairs = JoinFromList.projectOntoSelf( rdd, sc.broadcast( keyPairList ), sc.defaultParallelism() )
+					//					.mapToPair( t -> new Tuple2<>( t._1()._1() < t._1()._2() ? t._1() : t._1().swap(), t._2() ) )
+					// is this partitionby bad?
+					//					.partitionBy( new ShearedGridPartitioner2D( new int[] { 0, 1 }, new int[] { stop, maxRange }, sc.defaultParallelism() ) )
+					.persist( pairPersistenceLevel );
+
 			this.pairs.add( pairs );
 			this.bounds.add( Utility.tuple5( z, Math.min( z + stepSize, stop ), z - lower, lower, size ) );
 		}
+
+		final List< Long > counts = this.pairs.stream().map( p -> p.count() ).collect( Collectors.toList() );
+
+		if ( LOG.isDebugEnabled() )
+			for ( int z = 0; z < pairs.size(); ++z )
+			{
+				final Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > val = pairs.get( z ).first();
+				final Tuple2< ImageAndMask, ImageAndMask > p = val._2();
+				final String home = System.getProperty( "user.home" );
+				final ImageProcessor[] fps = new ImageProcessor[] { p._1().image, p._1().mask, p._2().image, p._2().mask };
+				final String[] names = new String[] { "debug-img1", "debug-mask1", "debug-img2", "debug-mask2" };
+				for ( int i = 0; i < fps.length; ++i )
+					new FileSaver( new ImagePlus( "", fps[ i ] ) ).saveAsTiff( home + "/" + names[ i ] + "-" + z + ".tif" );
+				final CorrelationAndWeight saw = Correlations.calculate( p._1(), p._2() );
+				LOG.debug( "Got similarity=" + saw.corr + " and weight=" + saw.weight + " for exemplary image pair: " + val._1() );
+			}
+
+		// make sure this is done before any other work happens! otherwise
+		// performance suffers?
+		LOG.info( "Holding image pairs: " + counts );
+
+
 		log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Join stepsize: " + stepSize );
 		log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Number of chunks: " + this.pairs.size() );
 	}
@@ -125,6 +245,29 @@ public class ComputeMatricesChunked
 
 		return result;
 
+	}
+
+	public static List< Tuple2< Integer, Long > > recordsPerPartition( final JavaRDDLike< ?, ? > rdd )
+	{
+		final List< Tuple2< Integer, Long > > its = rdd.mapPartitionsWithIndex( ( i, it ) -> {
+			return new Iterator< Tuple2< Integer, Long > >()
+			{
+
+				@Override
+				public boolean hasNext()
+				{
+					return it.hasNext();
+				}
+
+				@Override
+				public Tuple2< Integer, Long > next()
+				{
+					it.next();
+					return new Tuple2<>( i, 1l );
+				}
+			};
+		}, true ).mapToPair( t -> t ).reduceByKey( ( l1, l2 ) -> l1 + l2 ).collect();
+		return its;
 	}
 
 	/**
