@@ -12,6 +12,11 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.serializer.KryoRegistrator;
 import org.janelia.thickness.BlockCoordinates;
+import org.janelia.thickness.kryo.ij.ByteProcessorSerializer;
+import org.janelia.thickness.kryo.ij.ColorProcessorSerializer;
+import org.janelia.thickness.kryo.ij.FloatProcessorSerializer;
+import org.janelia.thickness.kryo.ij.ShortProcessorSerializer;
+import org.janelia.thickness.kryo.imglib.ArrayImgSerializer;
 import org.janelia.thickness.utility.DPTuple;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -20,6 +25,7 @@ import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
+import net.imglib2.img.array.ArrayImg;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
@@ -50,6 +56,7 @@ public class KryoSerialization
 		@Override
 		public void registerClasses( final Kryo kryo )
 		{
+			kryo.register( ArrayImg.class, new ArrayImgSerializer() );
 			kryo.register( ByteProcessor.class, new ByteProcessorSerializer() );
 			kryo.register( ColorProcessor.class, new ColorProcessorSerializer() );
 			kryo.register( FloatProcessor.class, new FloatProcessorSerializer() );

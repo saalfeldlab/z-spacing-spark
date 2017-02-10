@@ -53,6 +53,7 @@ import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.RealTransformRealRandomAccessible;
+import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
@@ -853,6 +854,13 @@ public class Utility
 	{
 		assert c1.size() == c2.size(): "Size mismatch!";
 		return IntStream.range( 0, c1.size() ).mapToObj( i -> new Tuple2<>( c1.get( i ), c2.get( i ) ) );
+	}
+
+	public static < T extends NativeType< T > > ArrayImg< T, ? > setConstantVal( final ArrayImg< T, ? > img, final T t )
+	{
+		for ( final T i : img )
+			i.set( t );
+		return img;
 	}
 
 }
