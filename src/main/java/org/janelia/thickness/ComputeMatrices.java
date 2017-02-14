@@ -27,11 +27,11 @@ import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.storage.StorageLevel;
+import org.janelia.thickness.BlockCoordinates.Coordinate;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.kryo.KryoSerialization;
 import org.janelia.thickness.similarity.CorrelationAndWeight;
 import org.janelia.thickness.similarity.CorrelationsImgLib;
-import org.janelia.thickness.similarity.DefaultMatrixGenerator;
 import org.janelia.thickness.similarity.ImageAndMask;
 import org.janelia.thickness.utility.Utility;
 import org.kohsuke.args4j.Argument;
@@ -229,57 +229,55 @@ public class ComputeMatrices
 		LOG.info( "Source pattern: " + imagePattern );
 		LOG.info( "Mask pattern:   " + maskPattern );
 
-		final List< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > > maskedImagePairs = indexPairRDDs.stream().map( rdd -> rdd.mapToPair( new LoadImages( indicesBC, imagePattern, maskPattern, w, h, imageScaleLevel ) ).persist( StorageLevel.DISK_ONLY() ) ).collect( Collectors.toList() );
+		final List< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > > maskedImagePairs = indexPairRDDs.stream().map( rdd -> rdd.mapToPair( new LoadImages( indicesBC, imagePattern, maskPattern, w, h, imageScaleLevel ) ) ).collect( Collectors.toList() );
 		globalUnpersistList.addAll( maskedImagePairs );
 		indexPairRDDs.stream().map( rdd -> rdd.unpersist() ).mapToInt( v -> 1 ).count();
 
 		final ArrayList< Tuple2< Long, Long > > times = new ArrayList<>();
 
-		for ( int iteration = 0; iteration < radiiArray.length; ++iteration )
+		final ArrayList< BlockCoordinates.Coordinate >[] coordinates = new ArrayList[ radiiArray.length ];
+		for ( int i = 0; i < coordinates.length; ++i )
+		{
+			final int[] currentOffset = radiiArray[ i ];
+			final int[] currentStep = stepsArray[ i ];
+			final BlockCoordinates correlationBlocks = new BlockCoordinates( currentOffset, currentStep );
+			coordinates[ i ] = correlationBlocks.generateFromBoundingBox( dim );
+		}
+		final Broadcast< ArrayList< Coordinate >[] > coordinatesBC = sc.broadcast( coordinates );
+		final Broadcast< int[] > rBC = sc.broadcast( Arrays.stream( options ).mapToInt( o -> o.comparisonRange ).toArray() );
+
+		final Broadcast< long[] > blockSize = sc.broadcast( new long[] { 5, 5 } );
+
+		final List< JavaPairRDD< Tuple3< Integer, Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > > matrixChunks = IntStream
+				.range( 0, maskedImagePairs.size())
+				.mapToObj( i -> generateMatrices( sc, maskedImagePairs.get( i ), coordinatesBC, dimBC, rBC, sc.broadcast( radiiArray ), sc.broadcast( stepsArray ), sizes.get( i ), blockSize, bounds.get( i ) ).persist( StorageLevel.DISK_ONLY() ) )
+				.collect( Collectors.toList() );
+		globalUnpersistList.addAll( matrixChunks );
+
+		final long t0 = System.currentTimeMillis();
+		final long nChunks = matrixChunks.stream().mapToLong( rdd -> rdd.count() ).reduce( ( l1, l2 ) -> l1 + l2 ).getAsLong();
+		final long t1 = System.currentTimeMillis();
+		LOG.info( "Similarity calculation time: " + ( t1 - t0 ) + "ms (" + nChunks + "chunks)" );
+
+		for ( int iteration = 0; iteration < coordinates.length; ++iteration )
 		{
 
 			final ArrayList< Object > unpersistList = new ArrayList<>();
 
-			LOG.info( "i=" + iteration );
-			LOG.info( "Options [" + iteration + "] = \n" + options[ iteration ].toString() );
-
-			final long tStart = System.currentTimeMillis();
-
-			final int[] currentOffset = radiiArray[ iteration ];
-			final int[] currentStep = stepsArray[ iteration ];
+			final int fIteration = iteration;
 			final int r = options[ iteration ].comparisonRange;
-			//
-			//			final List< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > > mip = maskedImagePairs.stream().map( rdd -> rdd.filter( new DefaultMatrixGenerator.SelectInRange<>( r ) ).persist( StorageLevel.DISK_ONLY() ) ).collect( Collectors.toList() );
-			//			mip.forEach( rdd -> rdd.count() );
-			//			maskedImagePairs.forEach( rdd -> rdd.unpersist() );
-			//			maskedImagePairs = mip;
-			final List< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > > mip = maskedImagePairs.stream().map( rdd -> rdd.filter( new DefaultMatrixGenerator.SelectInRange<>( r ) ) ).collect( Collectors.toList() );
-			mip.forEach( rdd -> LOG.info( rdd.keys().filter( t -> t._2() - t._1() == 1 ).collect() ) );
+			final List< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > > msAt = matrixChunks.stream().map( rdd -> rdd.filter( t -> t._1()._1() == fIteration ).mapToPair( t -> new Tuple2<>( new Tuple2<>( t._1()._2(), t._1()._3() ), t._2() ) ) ).collect( Collectors.toList() );
+			final List< Tuple2< Integer, JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > > > matrixChunksWithOffset = IntStream.range( 0, msAt.size() ).mapToObj( k -> new Tuple2<>( k * joinStepSize, msAt.get( k ) ) ).collect( Collectors.toList() );
 
-			final BlockCoordinates correlationBlocks = new BlockCoordinates( currentOffset, currentStep );
-			final Broadcast< ArrayList< BlockCoordinates.Coordinate > > coordinates = sc.broadcast( correlationBlocks.generateFromBoundingBox( dim ) );
+			// if ( iteration == 0 )
+			// {
+			// new ImageJ();
+			// matrixChunks.forEach( rdd -> ImageJFunctions.show(
+			// Views.hyperSlice( Views.hyperSlice( rdd.values().map( p -> p._1()
+			// ).collect().get( 0 ), 1, 0 ), 0, 0 ) ) );
+			// }
 
-			//			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< FloatProcessor, FloatProcessor > > matrices = generateMatrices( maskedImagePairs, coordinates, dimBC, r, size );
-			// why is this slow at dense resolution? and consumes a ton of
-			// memory!
-			final Broadcast< long[] > blockSize = sc.broadcast( new long[] { 50, 50 } );
-			LOG.info( "Generating matrices at " + coordinates.getValue().size() + " xy locations." );
-			final List< JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > > matrixChunks = IntStream
-					.range( 0, mip.size())
-					.mapToObj( i -> generateMatrices( sc, mip.get( i ), coordinates, dimBC, r, sizes.get( i ), blockSize, bounds.get( i ) ).persist( StorageLevel.DISK_ONLY() ) )
-					.collect( Collectors.toList() );
-			unpersistList.addAll( matrixChunks );
-			LOG.info( "Calculated " + matrixChunks.stream().map( rdd -> rdd.count() ).collect( Collectors.toList() ) + " matrix chunks" );
-
-			final List<Tuple2<Integer,JavaPairRDD<Tuple2<Integer,Integer>,Tuple2<ArrayImg<FloatType,?>,ArrayImg<FloatType,?>>>>> matrixChunksWithOffset = IntStream.range( 0, matrixChunks.size() ).mapToObj( k -> new Tuple2<>( k * joinStepSize, matrixChunks.get( k ) ) ).collect( Collectors.toList() );
-
-			//			if ( iteration == 0 )
-			//			{
-			//				new ImageJ();
-			//				matrixChunks.forEach( rdd -> ImageJFunctions.show( Views.hyperSlice( Views.hyperSlice( rdd.values().map( p -> p._1() ).collect().get( 0 ), 1, 0 ), 0, 0 ) ) );
-			//			}
-
-			JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > matrices = matrixChunks.get( 0 ).mapValues( v -> {
+			JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > matrices = msAt.get( 0 ).mapValues( v -> {
 				final long d0 = v._1().dimension( 0 );
 				final long d1 = v._1().dimension( 1 );
 				final FloatType f = new FloatType( Float.NaN );
@@ -287,7 +285,7 @@ public class ComputeMatrices
 			} );
 			for ( int k = 0; k < matrixChunksWithOffset.size(); ++k )
 			{
-				final Tuple2<Integer,JavaPairRDD<Tuple2<Integer,Integer>,Tuple2<ArrayImg<FloatType,?>,ArrayImg<FloatType,?>>>> chunk = matrixChunksWithOffset.get( k );
+				final Tuple2< Integer, JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > > chunk = matrixChunksWithOffset.get( k );
 				final int s = chunk._1();
 				final int S = Math.min( s + joinStepSize, size - 1 );
 				matrices = matrices.join( chunk._2() ).mapValues( t -> {
@@ -316,7 +314,6 @@ public class ComputeMatrices
 						if ( !Float.isNaN( p.getA().get() ) )
 							p.getB().set( p.getA() );
 
-
 					return t._1();
 				} );
 			} ;
@@ -332,13 +329,13 @@ public class ComputeMatrices
 
 			final long c1 = onlyMatrices.mapToPair( new WriteToFormatString( outputFormatMatrices ) ).values().treeReduce( ( l1, l2 ) -> l1 + l2 );
 			final long c2 = onlyWeights.mapToPair( new WriteToFormatString( outputFormatWeightMatrices ) ).values().treeReduce( ( l1, l2 ) -> l1 + l2 );
-			//			matrices.mapValues( t -> t._2() ).mapToPair( new Utility.WriteToFormatString<>( outputFormatWeightMatrices ) ).collect();
+			// matrices.mapValues( t -> t._2() ).mapToPair( new
+			// Utility.WriteToFormatString<>( outputFormatWeightMatrices )
+			// ).collect();
 
 			final long tEnd = System.currentTimeMillis();
 
-			log.info( "Successfully wrote " + c1 + " matrices at iteration " + iteration + String.format( " in %25dms", tEnd - tStart ) );
-
-			times.add( Utility.tuple2( tStart, tEnd ) );
+			log.info( "Successfully wrote " + c1 + " matrices at iteration " + iteration );
 
 			// unpersist rdds
 			for ( final Object o : unpersistList )
@@ -350,7 +347,6 @@ public class ComputeMatrices
 			}
 
 		}
-
 		for ( final Object o : globalUnpersistList )
 		{
 			if ( o instanceof JavaPairRDD< ?, ? > )
@@ -386,29 +382,38 @@ public class ComputeMatrices
 		return fp2;
 	}
 
-	public static final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > generateMatrices(
+	public static final JavaPairRDD< Tuple3< Integer, Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > generateMatrices(
 			final JavaSparkContext sc,
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > maskedImagePairs,
-			final Broadcast< ArrayList< BlockCoordinates.Coordinate > > coordinates, final Broadcast< int[] > dim, final int r, final int size, final Broadcast< long[] > blockSize, final Tuple2< Integer, Integer > bounds )
+			final Broadcast< ArrayList< BlockCoordinates.Coordinate >[] > coordinates,
+			final Broadcast< int[] > dim,
+			final Broadcast< int[] > r,
+			final Broadcast< int[][] > radiiArray,
+			final Broadcast< int[][] > stepsArray,
+			final int size,
+			final Broadcast< long[] > blockSize,
+			final Tuple2< Integer, Integer > bounds )
 	{
-		final Broadcast< List< Tuple2< Integer, Integer > > > localCoordinates = sc.broadcast( coordinates.getValue().stream().map( c -> c.getLocalCoordinates() ).collect( Collectors.toList() ) );
+		//		final Broadcast< List< Tuple2< Integer, Integer > > > localCoordinates = sc.broadcast( coordinates.getValue().stream().map( c -> c.getLocalCoordinates() ).collect( Collectors.toList() ) );
 
-		final JavaPairRDD< Tuple3< Integer, Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< FloatType, FloatType > > correlations = maskedImagePairs
-				.mapValues( new SubSectionCorrelations( coordinates, dim.getValue() ) )
-				.flatMapValues( new ExtractBlocks< FloatType, FloatType >( blockSize ) )
-				.mapToPair( new SwitchZZAndXYIndexByFirstZ<>() );
+		final JavaPairRDD< IterationXYZ, IterationAndTwoCoordinatesAndTwoArrayImgs< FloatType, FloatType > > correlations = maskedImagePairs
+				.mapToPair( new SubSectionCorrelations( coordinates, dim, r, radiiArray, stepsArray ) )
+				.flatMapValues( v -> {
+					return IntStream.range( 0, v.length ).mapToObj( i -> new Tuple2<>( i, v[ i ] ) ).collect( Collectors.toList() );
+				} ).flatMapValues( new ExtractBlocks<>( blockSize ) ).mapToPair( new SwitchZZAndIXYIndexByFirstZ<>() );
+		;
 
-		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > matrices = correlations.combineByKey( v -> {
+		final JavaPairRDD< Tuple3< Integer, Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > matrices = correlations.combineByKey( v -> {
 			@SuppressWarnings( "unchecked" )
-			final ArrayImg< FloatType, ? >[] imgs = new ArrayImg[ 2 * r ];
+			final ArrayImg< FloatType, ? >[] imgs = new ArrayImg[ 2 * r.getValue()[ v.i ] ];
 			final int dz = v.c2 - v.c1 - 1;
 			imgs[ dz ] = v.img1;
-			imgs[ dz + r ] = v.img2;
+			imgs[ dz + r.getValue()[ v.i ] ] = v.img2;
 			return imgs;
 		}, ( imgs, v ) -> {
 			final int dz = v.c2 - v.c1 - 1;
 			imgs[ dz ] = v.img1;
-			imgs[ dz + r ] = v.img2;
+			imgs[ dz + r.getValue()[ v.i ] ] = v.img2;
 			return imgs;
 		}, ( imgs1, imgs2 ) -> {
 			for ( int i = 0; i < imgs2.length; ++i )
@@ -417,13 +422,14 @@ public class ComputeMatrices
 			return imgs1;
 		}, sc.defaultParallelism() ).mapToPair( t -> {
 			final ArrayImg< FloatType, ? >[] imgs = t._2();
-			final ArrayImg< FloatType, FloatArray > img1 = ArrayImgs.floats( imgs[ 0 ].dimension( 0 ), imgs[ 0 ].dimension( 1 ), r );
-			final ArrayImg< FloatType, FloatArray > img2 = ArrayImgs.floats( imgs[ 0 ].dimension( 0 ), imgs[ 0 ].dimension( 1 ), r );
-			for ( int i = 0; i < r; ++i )
+			final int radius = t._1().i;
+			final ArrayImg< FloatType, FloatArray > img1 = ArrayImgs.floats( imgs[ 0 ].dimension( 0 ), imgs[ 0 ].dimension( 1 ), r.getValue()[ radius ] );
+			final ArrayImg< FloatType, FloatArray > img2 = ArrayImgs.floats( imgs[ 0 ].dimension( 0 ), imgs[ 0 ].dimension( 1 ), r.getValue()[ radius ] );
+			for ( int i = 0; i < radius; ++i )
 			{
 				final Cursor< FloatType > c1 = Views.hyperSlice( img1, 2, i ).cursor();
 				final Cursor< FloatType > c2 = Views.hyperSlice( img2, 2, i ).cursor();
-				if ( imgs[ i ] == null )
+				if ( imgs[ i ] == null || imgs[ i + radius ] == null )
 					while ( c1.hasNext() )
 					{
 						c1.next().set( Float.NaN );
@@ -432,7 +438,7 @@ public class ComputeMatrices
 				else
 				{
 					final ArrayCursor< FloatType > s1 = imgs[ i ].cursor();
-					final ArrayCursor< FloatType > s2 = imgs[ i + r ].cursor();
+					final ArrayCursor< FloatType > s2 = imgs[ i + radius ].cursor();
 					while ( c1.hasNext() )
 					{
 						c1.next().set( s1.next() );
@@ -440,63 +446,51 @@ public class ComputeMatrices
 					}
 				}
 			}
-			return new Tuple2<>( new Tuple2<>( t._1()._1(), t._1()._2() ), new Tuple3<>( t._1()._3(), img1, img2 ) );
-		} ).combineByKey(
-				v -> {
-					final int localIndex = v._1() - bounds._1();
-					final ArrayImg< FloatType, ? >[] cs = new ArrayImg[ 2 * size ];
-					cs[ localIndex ] = v._2();
-					cs[ localIndex + size ] = v._3();
-					return cs;
-				}, ( cs, v ) -> {
-					final int localIndex = v._1() - bounds._1();
-					cs[ localIndex ] = v._2();
-					cs[ localIndex + size ] = v._3();
-					return cs;
-				}, ( cs1, cs2 ) -> {
-					for ( int i = 0; i < cs2.length; ++i )
-						if ( cs2[ i ] != null )
-							cs1[ i ] = cs2[ i ];
+			return new Tuple2<>( new Tuple3<>( t._1().i, t._1().x, t._1().y ), new Tuple3<>( t._1().z, img1, img2 ) );
+		} ).combineByKey( v -> {
+			final int localIndex = v._1() - bounds._1();
+			final ArrayImg< FloatType, ? >[] cs = new ArrayImg[ 2 * size ];
+			cs[ localIndex ] = v._2();
+			cs[ localIndex + size ] = v._3();
+			return cs;
+		}, ( cs, v ) -> {
+			final int localIndex = v._1() - bounds._1();
+			cs[ localIndex ] = v._2();
+			cs[ localIndex + size ] = v._3();
+			return cs;
+		}, ( cs1, cs2 ) -> {
+			for ( int i = 0; i < cs2.length; ++i )
+				if ( cs2[ i ] != null )
+					cs1[ i ] = cs2[ i ];
 
-					return cs1;
-				}, sc.defaultParallelism() ).mapValues( cs -> {
-					final ArrayImg< FloatType, FloatArray > img1 = ArrayImgs.floats( cs[ 0 ].dimension( 0 ), cs[ 0 ].dimension( 1 ), cs[ 0 ].dimension( 2 ), cs.length / 2 );
-					final ArrayImg< FloatType, FloatArray > img2 = ArrayImgs.floats( cs[ 0 ].dimension( 0 ), cs[ 0 ].dimension( 1 ), cs[ 0 ].dimension( 2 ), cs.length / 2 );
+			return cs1;
+		}, sc.defaultParallelism() ).mapValues( cs -> {
+			final ArrayImg< FloatType, FloatArray > img1 = ArrayImgs.floats( cs[ 0 ].dimension( 0 ), cs[ 0 ].dimension( 1 ), cs[ 0 ].dimension( 2 ), cs.length / 2 );
+			final ArrayImg< FloatType, FloatArray > img2 = ArrayImgs.floats( cs[ 0 ].dimension( 0 ), cs[ 0 ].dimension( 1 ), cs[ 0 ].dimension( 2 ), cs.length / 2 );
 
-					for ( int i = 0, k = size; i < size; ++i, ++k )
-					{
-						final IntervalView< FloatType > hs1 = Views.hyperSlice( img1, 3, i );
-						final IntervalView< FloatType > hs2 = Views.hyperSlice( img2, 3, i );
-						if ( cs[ i ] == null )
-						{
-							for ( final FloatType h : hs1 )
-								h.setReal( Float.NaN );
-							for ( final FloatType h : hs2 )
-								h.setReal( Float.NaN );
-						}
-						else
-						{
-							for ( final Pair< FloatType, FloatType > p : Views.interval( Views.pair( cs[ i ], hs1 ), cs[ i ] ) )
-								p.getB().set( p.getA() );
-							for ( final Pair< FloatType, FloatType > p : Views.interval( Views.pair( cs[ k ], hs2 ), cs[ k ] ) )
-								p.getB().set( p.getA() );
-						}
-					}
+			for ( int i = 0, k = size; i < size; ++i, ++k )
+			{
+				final IntervalView< FloatType > hs1 = Views.hyperSlice( img1, 3, i );
+				final IntervalView< FloatType > hs2 = Views.hyperSlice( img2, 3, i );
+				if ( cs[ i ] == null )
+				{
+					for ( final FloatType h : hs1 )
+						h.setReal( Float.NaN );
+					for ( final FloatType h : hs2 )
+						h.setReal( Float.NaN );
+				}
+				else
+				{
+					for ( final Pair< FloatType, FloatType > p : Views.interval( Views.pair( cs[ i ], hs1 ), cs[ i ] ) )
+						p.getB().set( p.getA() );
+					for ( final Pair< FloatType, FloatType > p : Views.interval( Views.pair( cs[ k ], hs2 ), cs[ k ] ) )
+						p.getB().set( p.getA() );
+				}
+			}
 
-					return new Tuple2<>( img1, img2 );
-				} )
-				;
+			return new Tuple2<>( img1, img2 );
+		} );
 
-		//				.mapToPair( new SwitchZZAndXY<>() );
-		//		final List< TwoCoordinatesAndTwoArrayImgs< FloatType, FloatType > > def = correlations.values().filter( v -> v.c2 - v.c1 == 1 ).collect();
-		//		def.forEach( abc -> LOG.info( "MEEEH " + abc.c1 + " " + abc.c2 + " " + abc.img1.randomAccess().get() ) );
-		//		final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > matrices = correlations.combineByKey(
-		//				v -> {
-		//					LOG.debug( String.format( "Creating ArrayImg of dims: [%d, %d, %d, %d]", v.img1.dimension( 0 ), v.img1.dimension( 1 ), 2 * r + 1, size ) );
-		//					return new Tuple2<>( Utility.setConstantVal( ArrayImgs.floats( v.img1.dimension( 0 ), v.img1.dimension( 1 ), 2 * r + 1, size ), new FloatType( Float.NaN ) ), Utility.setConstantVal( ArrayImgs.floats( v.img1.dimension( 0 ), v.img1.dimension( 1 ), 2 * r + 1, size ), new FloatType( Float.NaN ) ) );
-		//				}, new MergeValueIntoMatrix<>( bounds._1().longValue() ),
-		//				new MergeMatrices(), sc.defaultParallelism() );
-		//		;
 		return matrices;
 	}
 
@@ -692,7 +686,7 @@ public class ComputeMatrices
 
 	}
 
-	public static class SubSectionCorrelations implements Function< Tuple2< ImageAndMask, ImageAndMask >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > >
+	public static class SubSectionCorrelations implements PairFunction< Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > >, Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > >[] >
 	{
 		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
 		static
@@ -705,21 +699,33 @@ public class ComputeMatrices
 		 */
 		private static final long serialVersionUID = 4914446108059613538L;
 
-		private final Broadcast< ArrayList< BlockCoordinates.Coordinate > > coordinates;
+		private final Broadcast< ArrayList< BlockCoordinates.Coordinate >[] > coordinates;
 
-		private final int[] dim;
+		private final Broadcast< int[] > dim;
 
-		public SubSectionCorrelations( final Broadcast< ArrayList< BlockCoordinates.Coordinate > > coordinates, final int[] dim )
+		private final Broadcast< int[] > rs;
+
+		private final Broadcast< int[][] > radiiArray;
+
+		private final Broadcast< int[][] > stepsArray;
+
+		public SubSectionCorrelations( final Broadcast< ArrayList< BlockCoordinates.Coordinate >[] > coordinates, final Broadcast< int[] > dim, final Broadcast< int[] > rs, final Broadcast< int[][] > radiiArray, final Broadcast< int[][] > stepsArray )
 		{
 			this.coordinates = coordinates;
 			this.dim = dim;
+			this.rs = rs;
+			this.radiiArray = radiiArray;
+			this.stepsArray = stepsArray;
 		}
 
 		@Override
-		public Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > call( final Tuple2< ImageAndMask, ImageAndMask > t ) throws Exception
+		public Tuple2< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > >[] > call( final Tuple2< Tuple2< Integer, Integer >, Tuple2< ImageAndMask, ImageAndMask > > t ) throws Exception
 		{
-			final ImageAndMask fp1 = t._1();
-			final ImageAndMask fp2 = t._2();
+			final int z1 = t._1()._1();
+			final int z2 = t._1()._2();
+			final int dz = Math.abs( z2 - z1 );
+			final ImageAndMask fp1 = t._2()._1();
+			final ImageAndMask fp2 = t._2()._2();
 
 			final int w = fp1.image.getWidth();
 			final int h = fp1.image.getHeight();
@@ -738,53 +744,85 @@ public class ComputeMatrices
 			assert w1.dimension( 0 ) == w && w1.dimension( 1 ) == h;
 			assert w2.dimension( 0 ) == w && w2.dimension( 1 ) == h;
 
-			final int xMax = coordinates.getValue().stream().mapToInt( c -> c.getLocalCoordinates()._1() ).max().getAsInt();
-			final int yMax = coordinates.getValue().stream().mapToInt( c -> c.getLocalCoordinates()._2() ).max().getAsInt();
-			final int xDim = xMax + 1;
-			final int yDim = yMax + 1;
-
 			LOG.debug( "Calculating correlations for images and masks: " + Arrays.toString( Intervals.dimensionsAsLongArray( i1 ) ) + "\n" + Arrays.toString( Intervals.dimensionsAsLongArray( i2 ) ) + "\n" + Arrays.toString( Intervals.dimensionsAsLongArray( w1 ) ) + "\n" + Arrays.toString( Intervals.dimensionsAsLongArray( w2 ) ) + "\n" );
 
 			final RandomAccessible< ? extends Pair< ? extends RealType< ? >, ? extends RealType< ? > > > p1 = Views.pair( i1, w1 );
 			final RandomAccessible< ? extends Pair< ? extends RealType< ? >, ? extends RealType< ? > > > p2 = Views.pair( i2, w2 );
 
-			final float[] wData = new float[ xDim * yDim ];
-			final float[] cData = new float[ xDim * yDim ];
-			final ArrayImg< FloatType, FloatArray > weights = ArrayImgs.floats( wData, xDim, yDim );
-			final ArrayImg< FloatType, FloatArray > corrs = ArrayImgs.floats( cData, xDim, yDim );
+			final int[] dim = this.dim.getValue();
+			final int[][] radiiArray = this.radiiArray.getValue();
+			final int[][] stepsArray = this.stepsArray.getValue();
 
-			final ArrayRandomAccess< FloatType > wAccess = weights.randomAccess();
-			final ArrayRandomAccess< FloatType > cAccess = corrs.randomAccess();
 
-			for ( final BlockCoordinates.Coordinate coord : coordinates.getValue() )
+			final Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > >[] result = new Tuple2[ radiiArray.length ];
+
+
+			for ( int d = 0; d < result.length; ++d )
 			{
-				final Tuple2< Integer, Integer > local = coord.getLocalCoordinates();
-				final Tuple2< Integer, Integer > global = coord.getWorldCoordinates();
-				final Tuple2< Integer, Integer > radius = coord.getRadius();
-				currentStart[ 0 ] = Math.max( min[ 0 ], global._1() - radius._1() );
-				currentStart[ 1 ] = Math.max( min[ 1 ], global._2() - radius._2() );
-				currentStop[ 0 ] = Math.min( dim[ 0 ], global._1() + radius._1() );
-				currentStop[ 1 ] = Math.min( dim[ 1 ], global._2() + radius._2() );
-				final long[] currentMax = Arrays.stream( currentStop ).mapToLong( v -> v - 1 ).toArray();
-				wAccess.setPosition( local._1(), 0 );
-				wAccess.setPosition( local._2(), 1 );
-				cAccess.setPosition( local._1(), 0 );
-				cAccess.setPosition( local._2(), 1 );
+				LOG.debug( dz + " " + rs.getValue()[ d ] );
+				if ( dz > rs.getValue()[ d ] )
+					result[ d ] = null;
+				else {
 
-				final FinalInterval interval = new FinalInterval( Arrays.stream( currentStart ).mapToLong( i -> i ).toArray(), currentMax );
+					final ArrayList< Coordinate > coordinates = this.coordinates.getValue()[ d ];
 
-				//				LOG.debug( "Calculating coordinate for " + Arrays.toString( Intervals.minAsLongArray( interval ) ) + " " + Arrays.toString( Intervals.maxAsLongArray( interval ) ) );
-				//				LOG.debug( "dims: " + Arrays.toString( dim ) + " " + xMax + " " + yMax + " " + new Point( wAccess ) );
-				//				LOG.debug( Arrays.toString( Intervals.dimensionsAsLongArray( i1 ) ) + " " + Arrays.toString( Intervals.dimensionsAsLongArray( w1 ) ) );
-				CorrelationsImgLib.calculateNoRealSum( p1, p2, interval, cAccess.get(), wAccess.get() );
+					final int xMax = coordinates.stream().mapToInt( c -> c.getLocalCoordinates()._1() ).max().getAsInt();
+					final int yMax = coordinates.stream().mapToInt( c -> c.getLocalCoordinates()._2() ).max().getAsInt();
+					final int xDim = xMax + 1;
+					final int yDim = yMax + 1;
+
+					final float[] wData = new float[ xDim * yDim ];
+					final float[] cData = new float[ xDim * yDim ];
+					final ArrayImg< FloatType, FloatArray > weights = ArrayImgs.floats( wData, xDim, yDim );
+					final ArrayImg< FloatType, FloatArray > corrs = ArrayImgs.floats( cData, xDim, yDim );
+
+					final ArrayRandomAccess< FloatType > wAccess = weights.randomAccess();
+					final ArrayRandomAccess< FloatType > cAccess = corrs.randomAccess();
+
+					for ( final BlockCoordinates.Coordinate coord : coordinates )
+					{
+						final Tuple2< Integer, Integer > local = coord.getLocalCoordinates();
+						final Tuple2< Integer, Integer > global = coord.getWorldCoordinates();
+						final Tuple2< Integer, Integer > radius = coord.getRadius();
+						currentStart[ 0 ] = Math.max( min[ 0 ], global._1() - radius._1() );
+						currentStart[ 1 ] = Math.max( min[ 1 ], global._2() - radius._2() );
+						currentStop[ 0 ] = Math.min( dim[ 0 ], global._1() + radius._1() );
+						currentStop[ 1 ] = Math.min( dim[ 1 ], global._2() + radius._2() );
+						final long[] currentMax = Arrays.stream( currentStop ).mapToLong( v -> v - 1 ).toArray();
+						wAccess.setPosition( local._1(), 0 );
+						wAccess.setPosition( local._2(), 1 );
+						cAccess.setPosition( local._1(), 0 );
+						cAccess.setPosition( local._2(), 1 );
+
+						final FinalInterval interval = new FinalInterval( Arrays.stream( currentStart ).mapToLong( i -> i ).toArray(), currentMax );
+
+						// LOG.debug( "Calculating coordinate for " +
+						// Arrays.toString( Intervals.minAsLongArray( interval ) ) +
+						// " " + Arrays.toString( Intervals.maxAsLongArray( interval
+						// ) ) );
+						// LOG.debug( "dims: " + Arrays.toString( dim ) + " " + xMax
+						// + " " + yMax + " " + new Point( wAccess ) );
+						// LOG.debug( Arrays.toString(
+						// Intervals.dimensionsAsLongArray( i1 ) ) + " " +
+						// Arrays.toString( Intervals.dimensionsAsLongArray( w1 ) )
+						// );
+						CorrelationsImgLib.calculateNoRealSum( p1, p2, interval, cAccess.get(), wAccess.get() );
+
+
+					}
+					result[ d ] = new Tuple2<>( corrs, weights );
+					LOG.debug( "Returning " + Intervals.numElements( weights ) + " similarities with weight for level " + d );
+				}
 			}
-			LOG.debug( "Returning " + Intervals.numElements( weights ) + " similarities with weight" );
-			return new Tuple2<>( corrs, weights );
+			LOG.debug( Arrays.toString( result ) );
+			return new Tuple2<>( t._1(), result );
 		}
 	}
 
-	public static class TwoCoordinatesAndTwoArrayImgs< T extends NativeType< T >, U extends NativeType< U > >
+	public static class IterationAndTwoCoordinatesAndTwoArrayImgs< T extends NativeType< T >, U extends NativeType< U > >
 	{
+
+		public final int i;
 
 		public final int c1;
 
@@ -794,9 +832,10 @@ public class ComputeMatrices
 
 		public final ArrayImg< U, ? > img2;
 
-		public TwoCoordinatesAndTwoArrayImgs( final int x, final int y, final ArrayImg< T, ? > img1, final ArrayImg< U, ? > img2 )
+		public IterationAndTwoCoordinatesAndTwoArrayImgs( final int i, final int x, final int y, final ArrayImg< T, ? > img1, final ArrayImg< U, ? > img2 )
 		{
 			super();
+			this.i = i;
 			this.c1 = x;
 			this.c2 = y;
 			this.img1 = img1;
@@ -804,8 +843,14 @@ public class ComputeMatrices
 		}
 	}
 
-	public static class ExtractBlocks< T extends NativeType< T >, U extends NativeType< U > > implements Function< Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > >, Iterable< TwoCoordinatesAndTwoArrayImgs< T, U > > >
+	public static class ExtractBlocks< T extends NativeType< T >, U extends NativeType< U > > implements Function< Tuple2< Integer, Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > >, Iterable< IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > > >
 	{
+
+		public static Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+		static
+		{
+			LOG.setLevel( Level.INFO );
+		}
 
 		public static final int N_DIM = 2;
 
@@ -820,8 +865,11 @@ public class ComputeMatrices
 		}
 
 		@Override
-		public Iterable< TwoCoordinatesAndTwoArrayImgs< T, U > > call( final Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > v1 ) throws Exception
+		public Iterable< IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > > call( final Tuple2< Integer, Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > > v ) throws Exception
 		{
+			if ( v == null || v._2() == null )
+				return new ArrayList<>();
+			final Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > v1 = v._2();
 			final ArrayImg< T, ? > i1 = v1._1();
 			final ArrayImg< U, ? > i2 = v1._2();
 			final ArrayImgFactory< T > f1 = i1.factory();
@@ -830,7 +878,7 @@ public class ComputeMatrices
 			final U u = i2.firstElement();
 			final long[] blockSize = this.blockSize.getValue();
 
-			final ArrayList< TwoCoordinatesAndTwoArrayImgs< T, U > > blocks = new ArrayList<>();
+			final ArrayList< IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > > blocks = new ArrayList<>();
 
 			final long[] offset = new long[ N_DIM ];
 			final long[] dim = Intervals.dimensionsAsLongArray( i1 );
@@ -847,7 +895,7 @@ public class ComputeMatrices
 				for ( final Pair< U, U > p : Views.interval( Views.pair( Views.offsetInterval( i2, offset, blockDim ), ii2 ), ii2 ) )
 					p.getB().set( p.getA() );
 
-				blocks.add( new TwoCoordinatesAndTwoArrayImgs<>( ( int ) offset[ 0 ], ( int ) offset[ 1 ], ii1, ii2 ) );
+				blocks.add( new IterationAndTwoCoordinatesAndTwoArrayImgs<>( v._1(), ( int ) offset[ 0 ], ( int ) offset[ 1 ], ii1, ii2 ) );
 
 				for ( d = 0; d < N_DIM; ++d ) {
 					offset[ d ] += blockSize[ d ];
@@ -858,79 +906,59 @@ public class ComputeMatrices
 				}
 			}
 
+			LOG.debug( blocks );
+
 			return blocks;
 		}
 	}
 
-	public static class SwitchZZAndXY< T extends NativeType< T >, U extends NativeType< U > > implements PairFunction< Tuple2< Tuple2< Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > >, Tuple2< Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > >
+	public static class IterationXYZ
 	{
+		public final int i;
 
-		@Override
-		public Tuple2< Tuple2< Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > > call( final Tuple2< Tuple2< Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > > t ) throws Exception
-		{
-			//			if ( Math.abs( t._1()._2() - t._1()._1() ) == 1 )
-			//				LOG.info( "Yoyoyo " + t._1() + " " + t._2().img1.randomAccess().get() );
-			return new Tuple2<>( new Tuple2<>( t._2().c1, t._2().c2 ), new TwoCoordinatesAndTwoArrayImgs<>( t._1()._1(), t._1()._2(), t._2().img1, t._2().img2 ) );
-		}
+		public final int x;
 
-	}
+		public final int y;
 
-	public static class SwitchZZAndXYIndexByFirstZ< T extends NativeType< T >, U extends NativeType< U > > implements PairFunction< Tuple2< Tuple2< Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > >, Tuple3< Integer, Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > >
-	{
+		public final int z;
 
-		@Override
-		public Tuple2< Tuple3< Integer, Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > > call( final Tuple2< Tuple2< Integer, Integer >, TwoCoordinatesAndTwoArrayImgs< T, U > > t ) throws Exception
-		{
-			//			if ( Math.abs( t._1()._2() - t._1()._1() ) == 1 )
-			//				LOG.info( "Yoyoyo " + t._1() + " " + t._2().img1.randomAccess().get() );
-			return new Tuple2<>( new Tuple3<>( t._2().c1, t._2().c2, t._1()._1() ), new TwoCoordinatesAndTwoArrayImgs<>( t._1()._1(), t._1()._2(), t._2().img1, t._2().img2 ) );
-		}
-
-	}
-
-	public static class MergeValueIntoMatrix< T extends NativeType< T >, U extends NativeType< U > > implements Function2< Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > >, TwoCoordinatesAndTwoArrayImgs< T, U >, Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > >
-	{
-
-		public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
-		static
-		{
-			LOG.setLevel( Level.INFO );
-		}
-
-		private final long zMin;
-
-		public MergeValueIntoMatrix( final long zMin )
+		public IterationXYZ( final int i, final int x, final int y, final int z )
 		{
 			super();
-			this.zMin = zMin;
+			this.i = i;
+			this.x = x;
+			this.y = y;
+			this.z = z;
 		}
 
 		@Override
-		public Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > call( final Tuple2< ArrayImg< T, ? >, ArrayImg< U, ? > > v1, final TwoCoordinatesAndTwoArrayImgs< T, U > v2 ) throws Exception
+		public final int hashCode()
 		{
-			final long z1 = Math.min( v2.c1, v2.c2 ) - zMin;
-			final long z2 = Math.max( v2.c1, v2.c2 ) - zMin;
-			final long d = z2 - z1;
-			//			if ( Math.abs( d ) == 1 )
-			//				LOG.info( "Kekeke " + z1 + " " + z2 + " " + zMin + " " + d + v2.img1.randomAccess().get() );
+			// list:
+			// return 31*hashCode + (e==null ? 0 : e.hashCode())
+			return Arrays.hashCode( new int[] { i, x, y, z } );
+		}
 
-			final ArrayImg< T, ? > i1 = v1._1();
-			final ArrayImg< U, ? > i2 = v1._2();
-			final long r = i1.dimension( 2 ) / 2;
+		@Override
+		public final boolean equals( final Object o )
+		{
+			if ( o instanceof IterationXYZ )
+			{
+				final IterationXYZ ob = ( IterationXYZ ) o;
+				return ob.i == i && ob.x == x && ob.y == y && ob.z == z;
+			}
+			return false;
+		}
+	}
 
-			for ( final Pair< T, T > p : Views.interval( Views.pair( v2.img1, Views.hyperSlice( Views.hyperSlice( i1, 3, z1 ), 2, r + d ) ), v2.img1 ) )
-				p.getB().set( p.getA() );
 
-			for ( final Pair< T, T > p : Views.interval( Views.pair( v2.img1, Views.hyperSlice( Views.hyperSlice( i1, 3, z2 ), 2, r - d ) ), v2.img1 ) )
-				p.getB().set( p.getA() );
+	public static class SwitchZZAndIXYIndexByFirstZ< T extends NativeType< T >, U extends NativeType< U > > implements PairFunction< Tuple2< Tuple2< Integer, Integer >, IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > >, IterationXYZ, IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > >
+	{
 
-			for ( final Pair< U, U > p : Views.interval( Views.pair( v2.img2, Views.hyperSlice( Views.hyperSlice( i2, 3, z1 ), 2, r + d ) ), v2.img2 ) )
-				p.getB().set( p.getA() );
-
-			for ( final Pair< U, U > p : Views.interval( Views.pair( v2.img2, Views.hyperSlice( Views.hyperSlice( i2, 3, z2 ), 2, r - d ) ), v2.img2 ) )
-				p.getB().set( p.getA() );
-
-			return v1;
+		@Override
+		public Tuple2< IterationXYZ, IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > > call( final Tuple2< Tuple2< Integer, Integer >, IterationAndTwoCoordinatesAndTwoArrayImgs< T, U > > t ) throws Exception
+		{
+			return new Tuple2<>( new IterationXYZ( t._2().i, t._2().c1, t._2().c2, t._1()._1() ), new IterationAndTwoCoordinatesAndTwoArrayImgs<>( t._2().i, t._1()._1(), t._1()._2(), t._2().img1, t._2().img2 ) );
 		}
 
 	}
