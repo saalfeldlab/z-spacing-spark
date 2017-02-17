@@ -48,7 +48,7 @@ import scala.Tuple2;
  * @author Philipp Hanslovsky
  *
  */
-public class ZSpacing
+public class ZSpacingDeprecated
 {
 
 	public static Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
