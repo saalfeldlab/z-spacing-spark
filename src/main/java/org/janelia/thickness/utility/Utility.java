@@ -25,8 +25,10 @@ import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
+import org.janelia.thickness.SparkInference;
 import org.janelia.thickness.lut.LUTRealTransform;
 import org.janelia.thickness.lut.SingleDimensionLUTRealTransformField;
+import org.janelia.utility.MatrixStripConversion;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
@@ -37,6 +39,7 @@ import loci.formats.FileStitcher;
 import loci.plugins.util.ImageProcessorReader;
 import mpicbg.trakem2.util.Downsampler;
 import net.imglib2.Cursor;
+import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
@@ -47,6 +50,7 @@ import net.imglib2.converter.read.ConvertedRandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayCursor;
 import net.imglib2.img.array.ArrayImg;
+import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.basictypeaccess.array.DoubleArray;
 import net.imglib2.img.basictypeaccess.array.FloatArray;
@@ -397,6 +401,37 @@ public class Utility
 				tc.next().set( s.next() );
 
 			return Utility.tuple2( t._1(), new FloatProcessor( width, height, data ) );
+		}
+	}
+
+	public static class TransformArrayImg implements Function< Tuple2< ArrayImg< FloatType, ? >, double[] >, FloatProcessor >
+	{
+		@Override
+		public FloatProcessor call( final Tuple2< ArrayImg< FloatType, ? >, double[] > t ) throws Exception
+		{
+			final Tuple2< ArrayImg< FloatType, ? >, double[] > t2 = t;
+			final ArrayImg< FloatType, ? > halfStrip = t2._1();
+			final int width = ( int ) halfStrip.dimension( 0 );
+			final int height = ( int ) halfStrip.dimension( 1 );
+			final float[] data = new float[ width * height ];
+			final Img< FloatType > strip = SparkInference.halfStripToStrip( halfStrip, new ArrayImgFactory<>(), new FloatType( Float.NaN ) );
+			final RandomAccessibleInterval< FloatType > matrix = MatrixStripConversion.stripToMatrix( strip, new FloatType( Float.NaN ) );
+			final ArrayImg< FloatType, FloatArray > transformed = ArrayImgs.floats( data, width, height );
+			final RealRandomAccessible< FloatType > source = Views.interpolate( Views.extendValue( matrix, new FloatType( Float.NaN ) ), new NLinearInterpolatorFactory< FloatType >() );
+			final LUTRealTransform transform = new LUTRealTransform( t2._2(), 2, 2 );
+			final RandomAccess< FloatType > s = Views.interval( Views.raster( new RealTransformRealRandomAccessible<>( source, transform ) ), halfStrip ).randomAccess();
+			final ArrayCursor< FloatType > tc = transformed.cursor();
+			while ( tc.hasNext() )
+			{
+				final FloatType val = tc.next();
+				final long z = tc.getLongPosition( 1 );
+				final long dz = tc.getLongPosition( 0 );
+				s.setPosition( z, 1 );
+				s.setPosition( z + dz + 1, 0 );
+				val.set( s.get() );
+			}
+
+			return new FloatProcessor( width, height, data );
 		}
 	}
 

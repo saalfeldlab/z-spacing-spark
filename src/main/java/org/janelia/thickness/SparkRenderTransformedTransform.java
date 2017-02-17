@@ -1,4 +1,4 @@
-/**/package org.janelia.thickness;
+package org.janelia.thickness;
 
 import java.io.IOException;
 import java.util.ArrayList;
