@@ -55,7 +55,7 @@ done
 
 TARGET_DIR=$PWD/$(date +%Y%m%d_%H%M%S)
 mkdir $TARGET_DIR
-( cd $SCRIPT_DIR && cp config.json run.sh render-transform-spark.sh render-spark.sh -t $TARGET_DIR )
+( cd $SCRIPT_DIR && cp config.json run.sh matrices.sh render-transform-spark.sh render-spark.sh -t $TARGET_DIR )
 OUT=$(realpath $TARGET_DIR/out)
 sed -i -e "s#START#$START#" -e "s#STOP#$STOP#" -e "s#STEP#$STEP#" -e "s#TARGET#$OUT#" -e "s#SOURCE#$SOURCE#" -e "s#OPTS#${OPTS}#" -e "s#MASK#$MASK#" $TARGET_DIR/config.json
 chmod u+w $TARGET_DIR/config.json

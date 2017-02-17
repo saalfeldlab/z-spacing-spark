@@ -6,6 +6,8 @@
     "stop": STOP,
     "step": STEP,
     "scale" : 0,
+    "fileOpener": "",
+    "logMatrices:" false,
     "defaultOptions": {
         "shiftProportion": 0.6,
         "nIterations": 100,
