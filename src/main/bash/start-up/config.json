@@ -12,12 +12,13 @@
         "gridRegularizationWeight": 0.0,
         "minimumSectionThickness": 1e-08,
         "withReorder": false,
-        "multiplierGenerationRegularizerWeight": 0.1,
-        "multiplierEstimationIterations": 10,
+        "scalingFactorRegularizerWeight": 0.1,
+        "scalingFactorEstimationIterations": 10,
         "coordinateUpdateRegularizerWeight": 0.0,
         "comparisonRange": 20,
         "regularizationType": "BORDER",
-        "forceMonotonicty": true
+        "forceMonotonicty": true,
+        "nThreads": 1
     },
     "options": [
         OPTS
