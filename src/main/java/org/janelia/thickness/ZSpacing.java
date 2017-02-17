@@ -40,6 +40,7 @@ import ij.ImagePlus;
 import ij.io.FileSaver;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 import loci.formats.FormatException;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
@@ -85,6 +86,7 @@ public class ZSpacing
 		{
 			parser.parseArgument( args );
 			p.parsedSuccessfully = true;
+			p.useCachedMatrices = p.useCachedMatrices == null ? false : p.useCachedMatrices;
 		}
 		catch ( final CmdLineException e )
 		{
@@ -120,7 +122,7 @@ public class ZSpacing
 
 	public static void run( final JavaSparkContext sc, final ScaleOptions scaleOptions, final boolean useCachedMatrices ) throws FormatException, IOException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, LambdaCreationException, InterruptedException, ExecutionException
 	{
-		if ( scaleOptions.fileOpener == null )
+		if ( scaleOptions.fileOpener == null || scaleOptions.fileOpener.equals( "" ) )
 			run( sc, scaleOptions, new Utility.LoadFileFromPattern( scaleOptions.source ), useCachedMatrices );
 		else if ( Utility.classExists( scaleOptions.fileOpener ) )
 		{
@@ -163,12 +165,9 @@ public class ZSpacing
 		globalUnpersistList.add( indicesBC );
 
 		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey( true, Math.min( size, sc.defaultParallelism() ) ).map( arg0 -> arg0._1() ).cache();
-		final JavaPairRDD< Integer, FloatProcessor > sections = sortedIndices.mapToPair( i -> new Tuple2<>( i, indicesBC.getValue().get( i ) ) ).mapValues( fileOpener ).mapToPair( new Utility.DownSample< Integer >( imageScaleLevel ) );
-		sections.cache();
-		sections.count();
 		globalUnpersistList.add( sortedIndices );
 
-		final FloatProcessor firstImg = sections.take( 1 ).get( 0 )._2();
+		final ImageProcessor firstImg = new ImagePlus( String.format( scaleOptions.source, start ) ).getProcessor();
 		final int width = firstImg.getWidth();
 		final int height = firstImg.getHeight();
 
