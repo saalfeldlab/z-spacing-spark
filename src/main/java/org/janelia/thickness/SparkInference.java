@@ -143,8 +143,8 @@ public class SparkInference
 			try
 			{
 				LOG.debug( "Coordinates: " + Arrays.toString( input.variables.coordinates ) );
-				LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
 				LOG.debug( "Scaling factors: " + Arrays.toString( input.variables.scalingFactors ) );
+				LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
 				final double[] scalingFactors = input.variables.scalingFactors.clone();
 				final double[] coordinates = inference.estimateZCoordinates(
 						matrix,
@@ -162,9 +162,9 @@ public class SparkInference
 						return Utility.tuple2( t._1(), input.variables );
 					}
 				LOG.debug( "After inference: " );
-				LOG.debug( Arrays.toString( coordinates ) );
-				LOG.debug( Arrays.toString( scalingFactors ) );
-				LOG.debug( Arrays.toString( visitor.getFit() ) );
+				LOG.debug( "Coordinates: " + Arrays.toString( coordinates ) );
+				LOG.debug( "Scaling factors: " + Arrays.toString( scalingFactors ) );
+				LOG.debug( "Estimate: " + Arrays.toString( visitor.getFit() ) );
 				return Utility.tuple2( t._1(), new Variables(
 						coordinates,
 						scalingFactors,
