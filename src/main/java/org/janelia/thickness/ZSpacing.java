@@ -242,9 +242,13 @@ public class ZSpacing
 					mapping.add( Utility.tuple2( n.getLocalCoordinates(), cbs1.translateCoordinateIntoThisBlockCoordinates( n ) ) );
 				currentVariables = SparkInterpolation.interpolate( sc, variables, sc.broadcast( mapping ), previousDim, new SparkInterpolation.MatchCoordinates.NearestNeighborMatcher() );
 			}
+			currentVariables.persist( StorageLevel.MEMORY_AND_DISK() );
+			currentVariables.count();
 			variables.unpersist();
 
 			LOG.info( "xyCoordinates: " + xyCoordinates );
+
+
 			final JavaPairRDD< Tuple2< Integer, Integer >, Weights > masks = wc.calculate( currentOffset, currentStep );
 			masks.persist( StorageLevel.MEMORY_AND_DISK() );
 			unpersistList.add( masks );
@@ -299,6 +303,7 @@ public class ZSpacing
 			variables = result;
 			variables.persist( StorageLevel.MEMORY_AND_DISK() );
 			variables.count();
+			currentVariables.unpersist();
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, double[] > coordinates = variables.mapValues( v -> v.coordinates );
 
