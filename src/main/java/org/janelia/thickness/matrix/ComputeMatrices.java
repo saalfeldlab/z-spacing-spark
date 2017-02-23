@@ -195,7 +195,7 @@ public class ComputeMatrices
 			final int S = Math.min( z + maxRange + joinStepSize, size );
 			final List< Integer > idxs = IntStream.range( z, z + joinStepSize ).mapToObj( i -> i ).collect( Collectors.toList() );
 			final JavaRDD< Tuple2< Integer, Integer > > indexPairs = sc.parallelize( idxs ).flatMap( i -> {
-				return IntStream.range( i + 1, Math.min( i + 1 + maxRange, S ) ).mapToObj( k -> new Tuple2<>( i, k ) ).iterator();
+				return IntStream.range( i, Math.min( i + 1 + maxRange, S ) ).mapToObj( k -> new Tuple2<>( i, k ) ).iterator();
 			} ).repartition( sc.defaultParallelism() );
 			indexPairs.cache();
 			indexPairRDDs.add( indexPairs );
@@ -401,15 +401,17 @@ public class ComputeMatrices
 				// combine by iteration, x, y, and first z index
 				.combineByKey( v -> {
 					@SuppressWarnings( "unchecked" )
-					final ArrayImg< FloatType, ? >[] imgs = new ArrayImg[ 2 * r.getValue()[ v.i ] ];
-					final int dz = v.c2 - v.c1 - 1;
+					final int rPlusOne = r.getValue()[ v.i ] + 1;
+					final ArrayImg< FloatType, ? >[] imgs = new ArrayImg[ 2 * rPlusOne ];
+					final int dz = v.c2 - v.c1;
 					imgs[ dz ] = v.img1;
-					imgs[ dz + r.getValue()[ v.i ] ] = v.img2;
+					imgs[ dz + rPlusOne ] = v.img2;
 					return imgs;
 				}, ( imgs, v ) -> {
-					final int dz = v.c2 - v.c1 - 1;
+					final int rPlusOne = r.getValue()[ v.i ] + 1;
+					final int dz = v.c2 - v.c1;
 					imgs[ dz ] = v.img1;
-					imgs[ dz + r.getValue()[ v.i ] ] = v.img2;
+					imgs[ dz + rPlusOne ] = v.img2;
 					return imgs;
 				}, ( imgs1, imgs2 ) -> {
 					for ( int i = 0; i < imgs2.length; ++i )
@@ -417,10 +419,10 @@ public class ComputeMatrices
 							imgs1[ i ] = imgs2[ i ];
 					return imgs1;
 				}, sc.defaultParallelism() )
-				//
+				// index by iteration and xy-location
 				.mapToPair( t -> {
 					final ArrayImg< FloatType, ? >[] imgs = t._2();
-					final int radius = r.getValue()[ t._1().i ];
+					final int radius = r.getValue()[ t._1().i ] + 1;
 					final ArrayImg< FloatType, FloatArray > img1 = ArrayImgs.floats( imgs[ 0 ].dimension( 0 ), imgs[ 0 ].dimension( 1 ), radius );
 					final ArrayImg< FloatType, FloatArray > img2 = ArrayImgs.floats( imgs[ 0 ].dimension( 0 ), imgs[ 0 ].dimension( 1 ), radius );
 					for ( int i = 0; i < radius; ++i )
@@ -445,7 +447,9 @@ public class ComputeMatrices
 						}
 					}
 					return new Tuple2<>( new Tuple3<>( t._1().i, t._1().x, t._1().y ), new Tuple3<>( t._1().z, img1, img2 ) );
-				} ).combineByKey( v -> {
+				} )
+				// combine by iteration and xy-location
+				.combineByKey( v -> {
 					final int localIndex = v._1() - bounds._1();
 					final ArrayImg< FloatType, ? >[] cs = new ArrayImg[ 2 * size ];
 					cs[ localIndex ] = v._2();
