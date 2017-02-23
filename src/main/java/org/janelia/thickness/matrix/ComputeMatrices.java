@@ -204,7 +204,7 @@ public class ComputeMatrices
 		final Broadcast< ArrayList< Tuple2< Integer, Integer > > > boundsBC = sc.broadcast( bounds );
 		globalUnpersistList.add( boundsBC );
 		globalUnpersistList.addAll( indexPairRDDs );
-		final List< Integer > sizes = bounds.stream().map( t -> Math.min( t._1() + joinStepSize, size - 1 ) - t._1() ).collect( Collectors.toList() );
+		final List< Integer > sizes = bounds.stream().map( t -> Math.min( t._1() + joinStepSize, size ) - t._1() ).collect( Collectors.toList() );
 
 		LOG.info( "Persisted " + indexPairRDDs.stream().map( rdd -> rdd.count() ).collect( Collectors.toList() ) + " index pairs. " );
 		LOG.info( indicesBC.getValue().length );
@@ -284,7 +284,7 @@ public class ComputeMatrices
 			{
 				final Tuple2< Integer, JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > > chunk = matrixChunksWithOffset.get( k );
 				final int s = chunk._1();
-				final int S = Math.min( s + joinStepSize, size - 1 );
+				final int S = Math.min( s + joinStepSize, size );
 				matrices = matrices.join( chunk._2() ).mapValues( t -> {
 					final ArrayImg< FloatType, ? > target = t._1()._1();
 					final ArrayImg< FloatType, ? > targetWeight = t._1()._2();
@@ -457,6 +457,7 @@ public class ComputeMatrices
 					return cs;
 				}, ( cs, v ) -> {
 					final int localIndex = v._1() - bounds._1();
+					LOG.debug( "Combining based on iteration and xy: " + v._1() + " " + bounds._1() + " " + localIndex + " " + size + " " + cs.length );
 					cs[ localIndex ] = v._2();
 					cs[ localIndex + size ] = v._3();
 					return cs;
