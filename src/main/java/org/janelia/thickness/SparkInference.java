@@ -149,7 +149,7 @@ public class SparkInference
 //			}
 
 			final AbstractCorrelationFit corrFit =
-					options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverageRegularized( input.variables.estimate, 0.9 ) : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
+					options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverageRegularized( input.variables.estimate, options.estimateRegularizer ) : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
 					LOG.debug( "Using correlation fit: " + corrFit.getClass().getName() );
 					final InferFromMatrix inference = new InferFromMatrix( corrFit );
 //			final Visitor visitor = new LazyVisitor();
