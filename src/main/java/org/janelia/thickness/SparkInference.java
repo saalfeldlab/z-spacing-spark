@@ -1,7 +1,12 @@
 package org.janelia.thickness;
 
 import java.io.Serializable;
+import java.lang.invoke.MethodHandles;
+import java.util.Arrays;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
@@ -15,6 +20,7 @@ import org.janelia.thickness.inference.visitor.Visitor;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.thickness.weight.Weights;
 import org.janelia.utility.MatrixStripConversion;
+import org.jfree.util.Log;
 
 import ij.process.FloatProcessor;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -37,6 +43,11 @@ import scala.Tuple2;
 
 public class SparkInference
 {
+
+	public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	{
+		LOG.setLevel( Level.DEBUG );
+	}
 
 	public static class Variables implements Serializable
 	{
@@ -75,6 +86,16 @@ public class SparkInference
 			this.estimateWeights = estimateWeights;
 			this.variables = variables;
 			this.weights = weights;
+		}
+
+		@Override
+		public String toString()
+		{
+			return new StringBuilder()
+					.append( Arrays.toString( variables.coordinates ) ).append( "\n" )
+					.append( Arrays.toString( variables.estimate ) ).append( "\n" )
+					.append( Arrays.toString( variables.scalingFactors ) )
+					.toString();
 		}
 
 
@@ -118,16 +139,17 @@ public class SparkInference
 			final RandomAccessibleInterval< FloatType > matrix = MatrixStripConversion.stripToMatrix( halfStripToStrip( input.matrix, new ArrayImgFactory<>(), new FloatType( Float.NaN ) ), new FloatType( Float.NaN ) );
 			final RandomAccessibleInterval< FloatType > estimateWeights = MatrixStripConversion.stripToMatrix( halfStripToStrip( input.estimateWeights, new ArrayImgFactory<>(), new FloatType( Float.NaN ) ), new FloatType( Float.NaN ) );
 
-			for ( final Cursor< FloatType > c = Views.iterable( matrix ).cursor(); c.hasNext(); )
-			{
-				final float val = c.next().get();
-				final long x = c.getLongPosition( 0 );
-				final long y = c.getLongPosition( 1 );
-				if ( Math.abs( x - y ) <= options.comparisonRange && ( Float.isNaN( val ) || val == 0.0f ) )
-					return Utility.tuple2( t._1(), input.variables );
-			}
+//			for ( final Cursor< FloatType > c = Views.iterable( matrix ).cursor(); c.hasNext(); )
+//			{
+//				final float val = c.next().get();
+//				final long x = c.getLongPosition( 0 );
+//				final long y = c.getLongPosition( 1 );
+//				if ( Math.abs( x - y ) <= options.comparisonRange && ( Float.isNaN( val ) || val == 0.0f ) )
+//					return Utility.tuple2( t._1(), input.variables );
+//			}
 
 			final AbstractCorrelationFit corrFit = options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverage() : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
+			LOG.debug( "Using correlation fit: " + corrFit.getClass().getName() );
 			final InferFromMatrix inference = new InferFromMatrix( corrFit );
 			final Visitor visitor = new LazyVisitor();
 			//			final ArrayImg< DoubleType, DoubleArray > img = ArrayImgs.doubles( input.variables.coordinates.length, options.nIterations + 1 );
@@ -135,23 +157,26 @@ public class SparkInference
 			try
 			{
 				//				final double[] coordinates = inference.estimateZCoordinates( matrix, input.variables.coordinates, options );
+				LOG.debug( "Coordinates: " + Arrays.toString( input.variables.coordinates ) );
+				LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
+				LOG.debug( "Scaling factors: " + Arrays.toString( input.variables.scalingFactors ) );
 				final double[] coordinates = inference.estimateZCoordinates(
 						matrix,
 						input.variables.coordinates,
 						input.variables.estimate,
 						input.variables.scalingFactors,
 						estimateWeights, // ConstantUtils.constantRandomAccessibleInterval(
-											// new FloatType( 1.0f ),
-											// estimateWeights.numDimensions(),
-											// estimateWeights ),
+						// new FloatType( 1.0f ),
+						// estimateWeights.numDimensions(),
+						// estimateWeights ),
 						input.weights.shiftWeights,
 						visitor,
 						options );
 				for ( final double c : coordinates )
 					if ( Double.isNaN( c ) )
 					{
-						System.err.println( "Inferred NaN value for coordinate " + t._1() );
-						return Utility.tuple2( t._1(), null );
+						LOG.warn( "Inferred NaN value for coordinate " + t._1() );
+						return Utility.tuple2( t._1(), input.variables );
 					}
 				//				final String path = String.format( pattern, t._1().toString() );
 				//				Files.createDirectories( new File( path ).getParentFile().toPath() );
@@ -162,9 +187,9 @@ public class SparkInference
 			{
 				//                String msg = e.getMessage();
 				//                new ImagePlus(t._1().toString(),t._2()._1().rebuild()).show();
-				System.err.println( "Fail at inference for coordinate " + t._1() );
+				Log.warn( "Fail at inference for coordinate " + t._1() );
 				e.printStackTrace( System.err );
-				return Utility.tuple2( t._1(), null );
+				return Utility.tuple2( t._1(), input.variables );
 				//                throw e;
 				//                throw new NotEnoughDataPointsException( t._1() + " " + msg );
 			}
@@ -197,12 +222,10 @@ public class SparkInference
 		t1.setOne();
 		t0.setZero();
 
-		final long r = halfStrip.dimension( 0 );
+		final long r = halfStrip.dimension( 0 ) - 1;
 		final Img< T > img = fac.create( new long[] { r * 2 + 1, halfStrip.dimension( 1 ) }, t );
-		for ( final T v : Views.hyperSlice( img, 0, r ) )
-			v.setOne();
 
-		for ( final Pair< T, T > p : Views.interval( Views.pair( Views.offset( img, r + 1, 0 ), halfStrip ), halfStrip ) )
+		for ( final Pair< T, T > p : Views.interval( Views.pair( Views.offset( img, r, 0 ), halfStrip ), halfStrip ) )
 			p.getA().set( p.getB() );
 
 		final ExtendedRandomAccessibleInterval< T, RandomAccessibleInterval< T > > ext = Views.extendValue( halfStrip, t );
@@ -210,7 +233,7 @@ public class SparkInference
 		for ( long i = 1; i <= r; ++i )
 		{
 			final Cursor< T > target = Views.hyperSlice( img, 0, r - i ).cursor();
-			final Cursor< T > source = Views.offsetInterval( Views.hyperSlice( ext, 0, i - 1 ), new long[] { -i }, new long[] { halfStrip.dimension( 1 ) } ).cursor();
+			final Cursor< T > source = Views.offsetInterval( Views.hyperSlice( ext, 0, i ), new long[] { -i }, new long[] { halfStrip.dimension( 1 ) } ).cursor();
 			while ( source.hasNext() )
 				target.next().set( source.next() );
 		}
