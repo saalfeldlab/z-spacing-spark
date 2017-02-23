@@ -165,7 +165,7 @@ public class ZSpacing
 		final JavaRDD< Integer > sortedIndices = sc.parallelize( Utility.arange( size ) ).mapToPair( i -> Utility.tuple2( i, i ) ).sortByKey( true, Math.min( size, sc.defaultParallelism() ) ).map( arg0 -> arg0._1() ).cache();
 		globalUnpersistList.add( sortedIndices );
 
-		final ImageProcessor firstImg = new ImagePlus( String.format( scaleOptions.source, start ) ).getProcessor();
+		final ImageProcessor firstImg = Downsampler.downsampleImageProcessor( new ImagePlus( String.format( scaleOptions.source, start ) ).getProcessor(), scaleOptions.scale );
 		final int width = firstImg.getWidth();
 		final int height = firstImg.getHeight();
 
