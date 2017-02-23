@@ -151,8 +151,6 @@ public class ZSpacing
 
 		final ArrayList< Object > globalUnpersistList = new ArrayList<>();
 
-		final Logger log = LOG;// LogManager.getRootLogger();
-
 		final String root = scaleOptions.target;
 		final String outputFolder = root + "/%02d";
 		final int imageScaleLevel = scaleOptions.scale;
@@ -203,8 +201,8 @@ public class ZSpacing
 
 			final ArrayList< Object > unpersistList = new ArrayList<>();
 
-			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": i=" + i );
-			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Options [" + i + "] = \n" + options[ i ].toString() );
+			LOG.info( "i=" + i );
+			LOG.info( "Options [" + i + "] = \n" + options[ i ].toString() );
 
 			final long tStart = System.currentTimeMillis();
 
@@ -327,7 +325,7 @@ public class ZSpacing
 				if ( s._2().booleanValue() )
 					continue;
 				++count;
-				log.warn( MethodHandles.lookup().lookupClass().getSimpleName() + ": Failed to write forward image " + s._1().intValue() );
+				LOG.warn( MethodHandles.lookup().lookupClass().getSimpleName() + ": Failed to write forward image " + s._1().intValue() );
 			}
 
 			int countBackward = 0;
@@ -336,12 +334,12 @@ public class ZSpacing
 				if ( s._2().booleanValue() )
 					continue;
 				++countBackward;
-				log.warn( MethodHandles.lookup().lookupClass().getSimpleName() + ": Failed to write backward image " + s._1().intValue() );
+				LOG.warn( MethodHandles.lookup().lookupClass().getSimpleName() + ": Failed to write backward image " + s._1().intValue() );
 			}
 
 			final long tEnd = System.currentTimeMillis();
 
-			log.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Successfully wrote " + ( success.size() - count ) + "/" + success.size() + " (forward) and " + ( successBackward.size() - countBackward ) + "/" + successBackward.size() + " (backward) " + "images at iteration " + i + String.format( " in %25dms", tEnd - tStart ) );
+			LOG.info( MethodHandles.lookup().lookupClass().getSimpleName() + ": Successfully wrote " + ( success.size() - count ) + "/" + success.size() + " (forward) and " + ( successBackward.size() - countBackward ) + "/" + successBackward.size() + " (backward) " + "images at iteration " + i + String.format( " in %25dms", tEnd - tStart ) );
 
 			times.add( Utility.tuple2( tStart, tEnd ) );
 
@@ -369,7 +367,7 @@ public class ZSpacing
 		for ( final Tuple2< Long, Long > t : times )
 		{
 			final long diff = t._2().longValue() - t._1().longValue();
-			log.info( String.format( "%s: Run time for complete iteration: %25dms", MethodHandles.lookup().lookupClass().getSimpleName(), diff ) );
+			LOG.info( String.format( "%s: Run time for complete iteration: %25dms", MethodHandles.lookup().lookupClass().getSimpleName(), diff ) );
 		}
 
 	}
