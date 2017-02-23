@@ -13,9 +13,9 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.janelia.thickness.inference.InferFromMatrix;
 import org.janelia.thickness.inference.Options;
 import org.janelia.thickness.inference.fits.AbstractCorrelationFit;
-import org.janelia.thickness.inference.fits.GlobalCorrelationFitAverage;
+import org.janelia.thickness.inference.fits.GlobalCorrelationFitAverageRegularized;
 import org.janelia.thickness.inference.fits.LocalCorrelationFitAverage;
-import org.janelia.thickness.inference.visitor.LazyVisitor;
+import org.janelia.thickness.inference.visitor.GlobalCorrelationFitVisitor;
 import org.janelia.thickness.inference.visitor.Visitor;
 import org.janelia.thickness.utility.Utility;
 import org.janelia.thickness.weight.Weights;
@@ -46,7 +46,7 @@ public class SparkInference
 
 	public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
 	{
-		LOG.setLevel( Level.DEBUG );
+		LOG.setLevel( Level.INFO );
 	}
 
 	public static class Variables implements Serializable
@@ -148,51 +148,61 @@ public class SparkInference
 //					return Utility.tuple2( t._1(), input.variables );
 //			}
 
-			final AbstractCorrelationFit corrFit = options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverage() : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
-			LOG.debug( "Using correlation fit: " + corrFit.getClass().getName() );
-			final InferFromMatrix inference = new InferFromMatrix( corrFit );
-			final Visitor visitor = new LazyVisitor();
-			//			final ArrayImg< DoubleType, DoubleArray > img = ArrayImgs.doubles( input.variables.coordinates.length, options.nIterations + 1 );
-			//			visitor = new WriteTransformationVisitor( img );
-			try
-			{
-				//				final double[] coordinates = inference.estimateZCoordinates( matrix, input.variables.coordinates, options );
-				LOG.debug( "Coordinates: " + Arrays.toString( input.variables.coordinates ) );
-				LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
-				LOG.debug( "Scaling factors: " + Arrays.toString( input.variables.scalingFactors ) );
-				final double[] coordinates = inference.estimateZCoordinates(
-						matrix,
-						input.variables.coordinates,
-						input.variables.estimate,
-						input.variables.scalingFactors,
-						estimateWeights, // ConstantUtils.constantRandomAccessibleInterval(
-						// new FloatType( 1.0f ),
-						// estimateWeights.numDimensions(),
-						// estimateWeights ),
-						input.weights.shiftWeights,
-						visitor,
-						options );
-				for ( final double c : coordinates )
-					if ( Double.isNaN( c ) )
+			final AbstractCorrelationFit corrFit =
+					options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverageRegularized( input.variables.estimate, 0.9 ) : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
+					LOG.debug( "Using correlation fit: " + corrFit.getClass().getName() );
+					final InferFromMatrix inference = new InferFromMatrix( corrFit );
+//			final Visitor visitor = new LazyVisitor();
+					final GlobalCorrelationFitVisitor visitor = new GlobalCorrelationFitVisitor();
+					//			final ArrayImg< DoubleType, DoubleArray > img = ArrayImgs.doubles( input.variables.coordinates.length, options.nIterations + 1 );
+					//			visitor = new WriteTransformationVisitor( img );
+					try
 					{
-						LOG.warn( "Inferred NaN value for coordinate " + t._1() );
-						return Utility.tuple2( t._1(), input.variables );
+						//				final double[] coordinates = inference.estimateZCoordinates( matrix, input.variables.coordinates, options );
+						LOG.debug( "Coordinates: " + Arrays.toString( input.variables.coordinates ) );
+						LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
+						LOG.debug( "Scaling factors: " + Arrays.toString( input.variables.scalingFactors ) );
+						final double[] scalingFactors = input.variables.scalingFactors.clone();
+						final double[] coordinates = inference.estimateZCoordinates(
+								matrix,
+								input.variables.coordinates,
+								input.variables.estimate,
+								scalingFactors,
+								estimateWeights, // ConstantUtils.constantRandomAccessibleInterval(
+								// new FloatType( 1.0f ),
+								// estimateWeights.numDimensions(),
+								// estimateWeights ),
+								input.weights.shiftWeights,
+								visitor,
+								options );
+						for ( final double c : coordinates )
+							if ( Double.isNaN( c ) )
+							{
+								LOG.warn( "Inferred NaN value for coordinate " + t._1() );
+								return Utility.tuple2( t._1(), input.variables );
+							}
+						//				final String path = String.format( pattern, t._1().toString() );
+						//				Files.createDirectories( new File( path ).getParentFile().toPath() );
+						//				new FileSaver( ImageJFunctions.wrapFloat( img, "" ) ).saveAsTiff( path );
+						LOG.debug( "After inference: " );
+						LOG.debug( Arrays.toString( coordinates ) );
+						LOG.debug( Arrays.toString( scalingFactors ) );
+						LOG.debug( Arrays.toString( visitor.getFit() ) );
+						return Utility.tuple2( t._1(), new Variables(
+								coordinates,
+								scalingFactors,
+								visitor.getFit() ) );
 					}
-				//				final String path = String.format( pattern, t._1().toString() );
-				//				Files.createDirectories( new File( path ).getParentFile().toPath() );
-				//				new FileSaver( ImageJFunctions.wrapFloat( img, "" ) ).saveAsTiff( path );
-				return Utility.tuple2( t._1(), new Variables( coordinates, input.variables.scalingFactors, input.variables.estimate ) );
-			}
-			catch ( final NotEnoughDataPointsException e )
-			{
-				//                String msg = e.getMessage();
-				//                new ImagePlus(t._1().toString(),t._2()._1().rebuild()).show();
-				Log.warn( "Fail at inference for coordinate " + t._1() );
-				e.printStackTrace( System.err );
-				return Utility.tuple2( t._1(), input.variables );
-				//                throw e;
-				//                throw new NotEnoughDataPointsException( t._1() + " " + msg );
-			}
+					catch ( final NotEnoughDataPointsException e )
+					{
+						//                String msg = e.getMessage();
+						//                new ImagePlus(t._1().toString(),t._2()._1().rebuild()).show();
+						Log.warn( "Fail at inference for coordinate " + t._1() );
+						e.printStackTrace( System.err );
+						return Utility.tuple2( t._1(), input.variables );
+						//                throw e;
+						//                throw new NotEnoughDataPointsException( t._1() + " " + msg );
+					}
 		}
 	}
 
