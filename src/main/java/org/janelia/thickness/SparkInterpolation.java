@@ -1,11 +1,15 @@
 package org.janelia.thickness;
 
 import java.io.Serializable;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -34,6 +38,11 @@ import scala.Tuple2;
 
 public class SparkInterpolation
 {
+
+	public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+	{
+		LOG.setLevel( Level.INFO );
+	}
 
 	public static JavaPairRDD< Tuple2< Integer, Integer >, SparkInference.Variables > interpolate(
 			final JavaSparkContext sc,
@@ -67,21 +76,31 @@ public class SparkInterpolation
 
 		public static class NearestNeighborMatcher implements Matcher
 		{
+			public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+			{
+				LOG.setLevel( Level.INFO );
+			}
 
 			@Override
 			public void call( final Tuple2< Double, Double > newPointInOldCoordinates, final Tuple2< Integer, Integer > newCoordinateGrid, final Tuple2< Integer, Integer > oldCoordinateGrid, final List< Tuple2< Tuple2< Integer, Integer >, Double > > associateWithNewCoordinatesGridAndWeights, final int[] dim )
 			{
-
 				final long r1 = Math.round( newPointInOldCoordinates._1() );
 				final long r2 = Math.round( newPointInOldCoordinates._2() );
 				if ( r1 == oldCoordinateGrid._1().intValue() && r2 == oldCoordinateGrid._2().intValue() )
+				{
+					LOG.debug( "Matched " + newCoordinateGrid + " to " + oldCoordinateGrid );
 					associateWithNewCoordinatesGridAndWeights.add( Utility.tuple2( newCoordinateGrid, 1.0 ) );
+				}
 
 			}
 		}
 
 		public static class NLinearMatcher implements Matcher
 		{
+			public static final Logger LOG = LogManager.getLogger( MethodHandles.lookup().lookupClass() );
+			{
+				LOG.setLevel( Level.INFO );
+			}
 
 			@Override
 			public void call( final Tuple2< Double, Double > newPointInOldCoordinates, final Tuple2< Integer, Integer > newCoordinateGrid, final Tuple2< Integer, Integer > oldCoordinateGrid, final List< Tuple2< Tuple2< Integer, Integer >, Double > > associateWithNewCoordinatesGridAndWeights, final int[] dim )
@@ -90,7 +109,10 @@ public class SparkInterpolation
 				final double diff1 = Math.abs( newPointInOldCoordinates._1() - oldCoordinateGrid._1().doubleValue() );
 				final double diff2 = Math.abs( newPointInOldCoordinates._2() - oldCoordinateGrid._2().doubleValue() );
 				if ( diff1 <= 1.0 && diff2 <= 1.0 )
+				{
 					associateWithNewCoordinatesGridAndWeights.add( Utility.tuple2( newCoordinateGrid, ( 1.0 - diff1 ) * ( 1.0 - diff2 ) ) );
+					LOG.debug( "Matched " + newCoordinateGrid + " to " + oldCoordinateGrid + " " + ( 1.0 - diff1 ) * ( 1.0 - diff2 ) );
+				}
 
 			}
 		}
