@@ -17,6 +17,7 @@ import org.janelia.thickness.kryo.ij.ColorProcessorSerializer;
 import org.janelia.thickness.kryo.ij.FloatProcessorSerializer;
 import org.janelia.thickness.kryo.ij.ShortProcessorSerializer;
 import org.janelia.thickness.kryo.imglib.ArrayImgSerializer;
+import org.janelia.thickness.kryo.imglib.type.FloatTypeSerializer;
 import org.janelia.thickness.utility.DPTuple;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -26,6 +27,7 @@ import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
 import net.imglib2.img.array.ArrayImg;
+import net.imglib2.type.numeric.real.FloatType;
 
 /**
  * @author Philipp Hanslovsky &lt;hanslovskyp@janelia.hhmi.org&gt;
@@ -61,6 +63,7 @@ public class KryoSerialization
 			kryo.register( ColorProcessor.class, new ColorProcessorSerializer() );
 			kryo.register( FloatProcessor.class, new FloatProcessorSerializer() );
 			kryo.register( ShortProcessor.class, new ShortProcessorSerializer() );
+			kryo.register( FloatType.class, new FloatTypeSerializer() );
 			kryo.register( DPTuple.class );
 			kryo.register( String.class );
 			kryo.register( HashMap.class );
