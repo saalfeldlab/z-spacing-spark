@@ -107,9 +107,6 @@ public class SparkInference
 			final Options options,
 			final String pattern )
 	{
-		//		final JavaPairRDD< Tuple2< Integer, Integer >, Input > matricesWithStartingCoordinates = matricesAndEstimateWeights
-		//				.join( startingVariablesAndWeights )
-		//				.mapValues( t -> new Input( t._1()._1(), t._1()._2(), t._2()._1(), t._2()._2() ) );
 		final JavaPairRDD< Tuple2< Integer, Integer >, Variables > result =
 				matricesWithStartingCoordinates.mapToPair( new Inference< Tuple2< Integer, Integer > >( options, pattern ) );
 
@@ -139,70 +136,46 @@ public class SparkInference
 			final RandomAccessibleInterval< FloatType > matrix = MatrixStripConversion.stripToMatrix( halfStripToStrip( input.matrix, new ArrayImgFactory<>(), new FloatType( Float.NaN ) ), new FloatType( Float.NaN ) );
 			final RandomAccessibleInterval< FloatType > estimateWeights = MatrixStripConversion.stripToMatrix( halfStripToStrip( input.estimateWeights, new ArrayImgFactory<>(), new FloatType( Float.NaN ) ), new FloatType( Float.NaN ) );
 
-//			for ( final Cursor< FloatType > c = Views.iterable( matrix ).cursor(); c.hasNext(); )
-//			{
-//				final float val = c.next().get();
-//				final long x = c.getLongPosition( 0 );
-//				final long y = c.getLongPosition( 1 );
-//				if ( Math.abs( x - y ) <= options.comparisonRange && ( Float.isNaN( val ) || val == 0.0f ) )
-//					return Utility.tuple2( t._1(), input.variables );
-//			}
-
-			final AbstractCorrelationFit corrFit =
-					options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverageRegularized( input.variables.estimate, options.estimateRegularizer ) : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
-					LOG.debug( "Using correlation fit: " + corrFit.getClass().getName() );
-					final InferFromMatrix inference = new InferFromMatrix( corrFit );
-//			final Visitor visitor = new LazyVisitor();
-					final GlobalCorrelationFitVisitor visitor = new GlobalCorrelationFitVisitor();
-					//			final ArrayImg< DoubleType, DoubleArray > img = ArrayImgs.doubles( input.variables.coordinates.length, options.nIterations + 1 );
-					//			visitor = new WriteTransformationVisitor( img );
-					try
+			final AbstractCorrelationFit corrFit = options.estimateWindowRadius < 0 ? new GlobalCorrelationFitAverageRegularized( input.variables.estimate, options.estimateRegularizer ) : new LocalCorrelationFitAverage( ( int ) matrix.dimension( 1 ), options );;
+			LOG.debug( "Using correlation fit: " + corrFit.getClass().getName() );
+			final InferFromMatrix inference = new InferFromMatrix( corrFit );
+			final GlobalCorrelationFitVisitor visitor = new GlobalCorrelationFitVisitor();
+			try
+			{
+				LOG.debug( "Coordinates: " + Arrays.toString( input.variables.coordinates ) );
+				LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
+				LOG.debug( "Scaling factors: " + Arrays.toString( input.variables.scalingFactors ) );
+				final double[] scalingFactors = input.variables.scalingFactors.clone();
+				final double[] coordinates = inference.estimateZCoordinates(
+						matrix,
+						input.variables.coordinates,
+						input.variables.estimate,
+						scalingFactors,
+						estimateWeights,
+						input.weights.shiftWeights,
+						visitor,
+						options );
+				for ( final double c : coordinates )
+					if ( Double.isNaN( c ) )
 					{
-						//				final double[] coordinates = inference.estimateZCoordinates( matrix, input.variables.coordinates, options );
-						LOG.debug( "Coordinates: " + Arrays.toString( input.variables.coordinates ) );
-						LOG.debug( "Estimate: " + Arrays.toString( input.variables.estimate ) );
-						LOG.debug( "Scaling factors: " + Arrays.toString( input.variables.scalingFactors ) );
-						final double[] scalingFactors = input.variables.scalingFactors.clone();
-						final double[] coordinates = inference.estimateZCoordinates(
-								matrix,
-								input.variables.coordinates,
-								input.variables.estimate,
-								scalingFactors,
-								estimateWeights, // ConstantUtils.constantRandomAccessibleInterval(
-								// new FloatType( 1.0f ),
-								// estimateWeights.numDimensions(),
-								// estimateWeights ),
-								input.weights.shiftWeights,
-								visitor,
-								options );
-						for ( final double c : coordinates )
-							if ( Double.isNaN( c ) )
-							{
-								LOG.warn( "Inferred NaN value for coordinate " + t._1() );
-								return Utility.tuple2( t._1(), input.variables );
-							}
-						//				final String path = String.format( pattern, t._1().toString() );
-						//				Files.createDirectories( new File( path ).getParentFile().toPath() );
-						//				new FileSaver( ImageJFunctions.wrapFloat( img, "" ) ).saveAsTiff( path );
-						LOG.debug( "After inference: " );
-						LOG.debug( Arrays.toString( coordinates ) );
-						LOG.debug( Arrays.toString( scalingFactors ) );
-						LOG.debug( Arrays.toString( visitor.getFit() ) );
-						return Utility.tuple2( t._1(), new Variables(
-								coordinates,
-								scalingFactors,
-								visitor.getFit() ) );
-					}
-					catch ( final NotEnoughDataPointsException e )
-					{
-						//                String msg = e.getMessage();
-						//                new ImagePlus(t._1().toString(),t._2()._1().rebuild()).show();
-						Log.warn( "Fail at inference for coordinate " + t._1() );
-						e.printStackTrace( System.err );
+						LOG.warn( "Inferred NaN value for coordinate " + t._1() );
 						return Utility.tuple2( t._1(), input.variables );
-						//                throw e;
-						//                throw new NotEnoughDataPointsException( t._1() + " " + msg );
 					}
+				LOG.debug( "After inference: " );
+				LOG.debug( Arrays.toString( coordinates ) );
+				LOG.debug( Arrays.toString( scalingFactors ) );
+				LOG.debug( Arrays.toString( visitor.getFit() ) );
+				return Utility.tuple2( t._1(), new Variables(
+						coordinates,
+						scalingFactors,
+						visitor.getFit() ) );
+			}
+			catch ( final NotEnoughDataPointsException e )
+			{
+				Log.warn( "Fail at inference for coordinate " + t._1() );
+				e.printStackTrace( System.err );
+				return Utility.tuple2( t._1(), input.variables );
+			}
 		}
 	}
 
