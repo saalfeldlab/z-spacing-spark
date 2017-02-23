@@ -210,6 +210,10 @@ public class ZSpacing
 			final int[] currentStep = stepsArray[ i ];
 			final int[] currentDim = new int[] { Math.max( 1, ( int ) Math.ceil( ( dim[ 0 ] - currentOffset[ 0 ] ) * 1.0 / currentStep[ 0 ] ) ), Math.max( 1, ( int ) Math.ceil( ( dim[ 1 ] - currentOffset[ 1 ] ) * 1.0 / currentStep[ 1 ] ) )
 			};
+			LOG.info( Arrays.toString( currentOffset ) );
+			LOG.info( Arrays.toString( currentStep ) );
+			LOG.info( Arrays.toString( currentDim ) );
+			LOG.info( Arrays.toString( dim ) );
 
 			final int[] previousOffset = i > 0 ? radiiArray[ i - 1 ] : new int[] { 0, 0 };
 			final int[] previousStep = i > 0 ? stepsArray[ i - 1 ] : new int[] { width, height };
@@ -240,15 +244,23 @@ public class ZSpacing
 			}
 			variables.unpersist();
 
+			LOG.info( "xyCoordinates: " + xyCoordinates );
 			final JavaPairRDD< Tuple2< Integer, Integer >, Weights > masks = wc.calculate( currentOffset, currentStep );
 			masks.persist( StorageLevel.MEMORY_AND_DISK() );
 			unpersistList.add( masks );
 
 			final String matrixFormat = String.format( outputFolder, i ) + "/matrices/%s.tif";
 			final String weightMatrixFormat = String.format( outputFolder, i ) + "/weight-matrices/%s.tif";
+			LOG.info( "Matrix format: " + matrixFormat );
+			LOG.info( "Weight matrix format: " + weightMatrixFormat );
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< ArrayImg< FloatType, ? >, ArrayImg< FloatType, ? > > > matrices = sc.parallelize( xyCoordinates ).mapToPair( xy -> {
-				final FloatProcessor m = ( FloatProcessor ) new ImagePlus( String.format( matrixFormat, xy ) ).getProcessor();
-				final FloatProcessor w = ( FloatProcessor ) new ImagePlus( String.format( weightMatrixFormat, xy ) ).getProcessor();
+				final String mPath = String.format( matrixFormat, xy );
+				final String wPath = String.format( weightMatrixFormat, xy );
+				LOG.debug( "Loading matrices for key : " + xy + ":" );
+				LOG.debug( mPath );
+				LOG.debug( wPath );
+				final FloatProcessor m = ( FloatProcessor ) new ImagePlus( mPath ).getProcessor();
+				final FloatProcessor w = ( FloatProcessor ) new ImagePlus( wPath ).getProcessor();
 				final ArrayImg< FloatType, FloatArray > mImg = ArrayImgs.floats( ( float[] ) m.getPixels(), m.getWidth(), m.getHeight() );
 				final ArrayImg< FloatType, FloatArray > wImg = ArrayImgs.floats( ( float[] ) w.getPixels(), w.getWidth(), w.getHeight() );
 				return new Tuple2<>( xy, new Tuple2<>( mImg, wImg ) );
