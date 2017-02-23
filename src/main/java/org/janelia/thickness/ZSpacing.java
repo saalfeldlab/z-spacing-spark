@@ -267,13 +267,6 @@ public class ZSpacing
 			} );
 
 
-			//			if ( scaleOptions.logMatrices[ i ] && false )
-			//			{
-			//				final String outputFormatMatrices = String.format( outputFolder, i ) + "/matrices/%s.tif";
-			//				// Write matrices
-			//				matrices.mapValues( t -> t._1() ).mapToPair( new Utility.WriteToFormatString< Tuple2< Integer, Integer > >( outputFormatMatrices ) ).collect();
-			//			}
-
 			final String lutPattern = String.format( outputFolder, i ) + "/luts/%s.tif";
 
 			final JavaPairRDD< Tuple2< Integer, Integer >, Tuple2< Variables, Weights > > variablesAndWeights = currentVariables.join( masks );
